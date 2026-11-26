@@ -1,12 +1,12 @@
 {
-  "projectId": "utility-craft-ndrm3",
-  "appId": "1:854228860382:web:972d97e655da92c43cf14f",
-  "apiKey": "AIzaSyA-9cyMHFTOxgSjGiePyUXsQHrjSIlU_gU",
-  "authDomain": "utility-craft-ndrm3.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-092bd66c-30dd-4d1b-8e25-a47dec34af6b",
-  "storageBucket": "utility-craft-ndrm3.firebasestorage.app",
-  "messagingSenderId": "854228860382",
-  "measurementId": "",
-  "oAuthClientId": "854228860382-8tis39jemcbvqgnpqq13b9s29j9v41b1.apps.googleusercontent.com",
+  "projectId": "mess-meal-system-7074e",
+  "appId": "1:571931025799:web:11186cbe464b03a2e83322",
+  "apiKey": "YOUR_NEW_FIREBASE_API_KEY",
+  "authDomain": "mess-meal-system-7074e.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "mess-meal-system-7074e.firebasestorage.app",
+  "messagingSenderId": "571931025799",
+  "measurementId": "G-K7YLRKDHG1",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }
