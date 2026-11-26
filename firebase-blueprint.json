@@ -1,0 +1,215 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile linking Google authentication to current active mess.",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 200 },
+        "currentMessId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["displayName", "email", "createdAt", "updatedAt"]
+    },
+    "Mess": {
+      "title": "Mess",
+      "description": "A mess group containing members, shared ledger, deadlines, and active month.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "managerUid": { "type": "string", "maxLength": 128 },
+        "adminUids": { "type": "array" },
+        "memberUids": { "type": "array" },
+        "activeMonth": { "type": "string", "pattern": "^\\d{4}-\\d{2}$", "maxLength": 10 },
+        "lunchBookingDeadline": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "maxLength": 5 },
+        "nightBookingDeadline": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "maxLength": 5 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "managerUid", "memberUids", "activeMonth", "createdAt", "updatedAt"]
+    },
+    "Member": {
+      "title": "Member",
+      "description": "A member inside a mess with role, room assignment, and auto-book preferences.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "room": { "type": "string", "maxLength": 60 },
+        "role": { "type": "string", "enum": ["MANAGER", "MEMBER"] },
+        "isActive": { "type": "boolean" },
+        "autoBookEnabled": { "type": "boolean" },
+        "autoBookLunch": { "type": "boolean" },
+        "autoBookNight": { "type": "boolean" },
+        "autoBookUpdatedAt": { "type": "string", "maxLength": 16 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "role", "isActive", "createdAt"]
+    },
+    "DailyMealRecord": {
+      "title": "DailyMealRecord",
+      "description": "Daily meal bookings, attendances, service status, and final kitchen order summaries.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "isFriday": { "type": "boolean" },
+        "lunchServiceStatus": { "type": "string", "enum": ["ACTIVE", "CANCELLED"] },
+        "nightServiceStatus": { "type": "string", "enum": ["ACTIVE", "CANCELLED"] },
+        "cancellationReason": { "type": "string", "maxLength": 300 },
+        "bookings": { "type": "object" },
+        "attendances": { "type": "object" },
+        "lunchFinalOrder": { "type": "object" },
+        "nightFinalOrder": { "type": "object" },
+        "totalDayUnits": { "type": "number" },
+        "totalDayMeals": { "type": "number" },
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "updatedBy", "updatedAt"]
+    },
+    "BazaarExpense": {
+      "title": "BazaarExpense",
+      "description": "Grocery bazaar purchase entry recorded for the mess.",
+      "type": "object",
+      "properties": {
+        "buyerMemberId": { "type": "string", "maxLength": 128 },
+        "buyerName": { "type": "string", "maxLength": 120 },
+        "amount": { "type": "number" },
+        "itemsDescription": { "type": "string", "maxLength": 500 },
+        "category": { "type": "string", "maxLength": 60 },
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["buyerMemberId", "buyerName", "amount", "itemsDescription", "category", "date", "createdAt"]
+    },
+    "Deposit": {
+      "title": "Deposit",
+      "description": "Cash or digital deposit contributed by a member into the mess fund.",
+      "type": "object",
+      "properties": {
+        "memberId": { "type": "string", "maxLength": 128 },
+        "memberName": { "type": "string", "maxLength": 120 },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "maxLength": 10 },
+        "paymentMethod": { "type": "string", "maxLength": 40 },
+        "notes": { "type": "string", "maxLength": 300 },
+        "recordedBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["memberId", "memberName", "amount", "date", "paymentMethod", "createdAt"]
+    },
+    "UtilityBill": {
+      "title": "UtilityBill",
+      "description": "Fixed shared utility or service bill split equally among active mess members.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "amount": { "type": "number" },
+        "month": { "type": "string", "maxLength": 10 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "amount", "month", "createdAt"]
+    },
+    "SharedBill": {
+      "title": "SharedBill",
+      "description": "Shared bill with fixed per member, divided equally, or custom per member allocation and payment tracking.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "allocationType": { "type": "string", "enum": ["FIXED_PER_MEMBER", "DIVIDED_EQUALLY", "CUSTOM_PER_MEMBER"] },
+        "totalAmount": { "type": "number" },
+        "perMemberAmount": { "type": "number" },
+        "month": { "type": "string", "maxLength": 10 },
+        "deadline": { "type": "string", "maxLength": 16 },
+        "notes": { "type": "string", "maxLength": 400 },
+        "assignedMemberIds": { "type": "array" },
+        "memberShares": { "type": "object" },
+        "memberNames": { "type": "object" },
+        "payments": { "type": "object" },
+        "createdByUid": { "type": "string", "maxLength": 128 },
+        "createdByName": { "type": "string", "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "allocationType", "totalAmount", "month", "deadline", "createdAt"]
+    },
+    "InAppNotification": {
+      "title": "InAppNotification",
+      "description": "In-app notification sent to members when bills are published.",
+      "type": "object",
+      "properties": {
+        "messId": { "type": "string", "maxLength": 128 },
+        "targetMemberId": { "type": "string", "maxLength": 128 },
+        "targetMemberName": { "type": "string", "maxLength": 120 },
+        "title": { "type": "string", "maxLength": 160 },
+        "message": { "type": "string", "maxLength": 500 },
+        "billId": { "type": "string", "maxLength": 128 },
+        "amount": { "type": "number" },
+        "deadline": { "type": "string", "maxLength": 16 },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["messId", "targetMemberId", "title", "message", "isRead", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable audit trail of financial changes, overrides, and role transitions.",
+      "type": "object",
+      "properties": {
+        "action": { "type": "string", "maxLength": 80 },
+        "performedByUid": { "type": "string", "maxLength": 128 },
+        "performedByName": { "type": "string", "maxLength": 120 },
+        "targetMemberId": { "type": "string", "maxLength": 128 },
+        "targetMemberName": { "type": "string", "maxLength": 120 },
+        "details": { "type": "string", "maxLength": 600 },
+        "reason": { "type": "string", "maxLength": 300 },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["action", "performedByUid", "details", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile linking Google authentication to active mess."
+    },
+    "/messes/{messId}": {
+      "schema": "Mess",
+      "description": "Mess group containing shared configuration and member list."
+    },
+    "/messes/{messId}/members/{memberId}": {
+      "schema": "Member",
+      "description": "Members participating in the mess."
+    },
+    "/messes/{messId}/daily_meals/{dateId}": {
+      "schema": "DailyMealRecord",
+      "description": "Day-by-day meal bookings, attendances, and final kitchen orders."
+    },
+    "/messes/{messId}/bazaar_expenses/{expenseId}": {
+      "schema": "BazaarExpense",
+      "description": "Market and grocery expenses for the mess."
+    },
+    "/messes/{messId}/deposits/{depositId}": {
+      "schema": "Deposit",
+      "description": "Member deposits to central mess fund."
+    },
+    "/messes/{messId}/utility_bills/{billId}": {
+      "schema": "UtilityBill",
+      "description": "Fixed monthly utility bills shared equally."
+    },
+    "/messes/{messId}/shared_bills/{billId}": {
+      "schema": "SharedBill",
+      "description": "Shared bills and fixed costs with per member shares and payment tracking."
+    },
+    "/messes/{messId}/notifications/{notificationId}": {
+      "schema": "InAppNotification",
+      "description": "In-app notifications sent to mess members."
+    },
+    "/messes/{messId}/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Immutable audit log entries for mess financial and role actions."
+    }
+  }
+}

@@ -1,0 +1,288 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isMessMember(messId) {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/messes/$(messId)) &&
+        (
+          request.auth.uid == get(/databases/$(database)/documents/messes/$(messId)).data.managerUid ||
+          (('memberUids' in get(/databases/$(database)/documents/messes/$(messId)).data) &&
+           request.auth.uid in get(/databases/$(database)/documents/messes/$(messId)).data.memberUids)
+        )
+      );
+    }
+
+    function isMessManager(messId) {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/messes/$(messId)) &&
+        (
+          request.auth.uid == get(/databases/$(database)/documents/messes/$(messId)).data.managerUid ||
+          (('adminUids' in get(/databases/$(database)/documents/messes/$(messId)).data) &&
+           request.auth.uid in get(/databases/$(database)/documents/messes/$(messId)).data.adminUids)
+        )
+      );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasOnly(['displayName', 'email', 'currentMessId', 'createdAt', 'updatedAt']) &&
+        (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 120)) &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 200)) &&
+        (!('currentMessId' in data) || (data.currentMessId is string && data.currentMessId.size() <= 128));
+    }
+
+    function isValidMess(data) {
+      return data.keys().hasAll(['name', 'managerUid', 'memberUids', 'activeMonth']) &&
+        data.keys().hasOnly(['name', 'managerUid', 'adminUids', 'memberUids', 'activeMonth', 'lunchBookingDeadline', 'nightBookingDeadline', 'createdAt', 'updatedAt']) &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.managerUid is string && data.managerUid.size() <= 128 &&
+        data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 200 &&
+        (!('adminUids' in data) || (data.adminUids is list && data.adminUids.size() <= 50)) &&
+        data.activeMonth is string && data.activeMonth.size() <= 10 &&
+        (!('lunchBookingDeadline' in data) || (data.lunchBookingDeadline is string && data.lunchBookingDeadline.size() <= 5)) &&
+        (!('nightBookingDeadline' in data) || (data.nightBookingDeadline is string && data.nightBookingDeadline.size() <= 5));
+    }
+
+    function isValidMember(data) {
+      return data.keys().hasAll(['userId', 'displayName', 'role', 'isActive']) &&
+        data.keys().hasOnly(['userId', 'displayName', 'room', 'role', 'isActive', 'autoBookEnabled', 'autoBookLunch', 'autoBookNight', 'autoBookUpdatedAt', 'createdAt']) &&
+        data.userId is string && data.userId.size() <= 128 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        (!('room' in data) || (data.room is string && data.room.size() <= 60)) &&
+        data.role in ['MANAGER', 'MEMBER'] &&
+        data.isActive is bool &&
+        (!('autoBookEnabled' in data) || data.autoBookEnabled is bool) &&
+        (!('autoBookLunch' in data) || data.autoBookLunch is bool) &&
+        (!('autoBookNight' in data) || data.autoBookNight is bool) &&
+        (!('autoBookUpdatedAt' in data) || (data.autoBookUpdatedAt is string && data.autoBookUpdatedAt.size() <= 16));
+    }
+
+    function isValidDailyMeal(data) {
+      return data.keys().hasAll(['date', 'updatedBy']) &&
+        data.keys().hasOnly(['date', 'isFriday', 'lunchServiceStatus', 'nightServiceStatus', 'cancellationReason', 'bookings', 'attendances', 'lunchFinalOrder', 'nightFinalOrder', 'totalDayUnits', 'totalDayMeals', 'updatedBy', 'updatedAt']) &&
+        data.date is string && data.date.size() == 10 &&
+        data.updatedBy is string && data.updatedBy.size() <= 128 &&
+        (!('isFriday' in data) || data.isFriday is bool) &&
+        (!('lunchServiceStatus' in data) || data.lunchServiceStatus in ['ACTIVE', 'CANCELLED']) &&
+        (!('nightServiceStatus' in data) || data.nightServiceStatus in ['ACTIVE', 'CANCELLED']) &&
+        (!('cancellationReason' in data) || (data.cancellationReason is string && data.cancellationReason.size() <= 300)) &&
+        (!('bookings' in data) || data.bookings is map) &&
+        (!('attendances' in data) || data.attendances is map) &&
+        (!('totalDayUnits' in data) || data.totalDayUnits is number) &&
+        (!('totalDayMeals' in data) || data.totalDayMeals is number);
+    }
+
+    function isValidBazaarExpense(data) {
+      return data.keys().hasAll(['buyerMemberId', 'buyerName', 'amount', 'itemsDescription', 'category', 'date']) &&
+        data.keys().hasOnly(['buyerMemberId', 'buyerName', 'amount', 'itemsDescription', 'category', 'date', 'createdAt']) &&
+        data.buyerMemberId is string && data.buyerMemberId.size() <= 128 &&
+        data.buyerName is string && data.buyerName.size() <= 120 &&
+        data.amount is number && data.amount >= 0 &&
+        data.itemsDescription is string && data.itemsDescription.size() <= 500 &&
+        data.category is string && data.category.size() <= 60 &&
+        data.date is string && data.date.size() == 10;
+    }
+
+    function isValidDeposit(data) {
+      return data.keys().hasAll(['memberId', 'memberName', 'amount', 'date', 'paymentMethod']) &&
+        data.keys().hasOnly(['memberId', 'memberName', 'amount', 'date', 'paymentMethod', 'notes', 'recordedBy', 'createdAt']) &&
+        data.memberId is string && data.memberId.size() <= 128 &&
+        data.memberName is string && data.memberName.size() <= 120 &&
+        data.amount is number && data.amount >= 0 &&
+        data.date is string && data.date.size() == 10 &&
+        data.paymentMethod is string && data.paymentMethod.size() <= 40 &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 300)) &&
+        (!('recordedBy' in data) || (data.recordedBy is string && data.recordedBy.size() <= 128));
+    }
+
+    function isValidUtilityBill(data) {
+      return data.keys().hasAll(['title', 'amount', 'month']) &&
+        data.keys().hasOnly(['title', 'amount', 'month', 'createdAt']) &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 120 &&
+        data.amount is number && data.amount >= 0 &&
+        data.month is string && data.month.size() <= 10;
+    }
+
+    function isValidSharedBill(data) {
+      return data.keys().hasAll(['title', 'allocationType', 'totalAmount', 'month', 'deadline']) &&
+        data.keys().hasOnly(['title', 'allocationType', 'totalAmount', 'perMemberAmount', 'month', 'deadline', 'notes', 'assignedMemberIds', 'memberShares', 'memberNames', 'payments', 'createdByUid', 'createdByName', 'createdAt', 'updatedAt']) &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 120 &&
+        data.allocationType in ['FIXED_PER_MEMBER', 'DIVIDED_EQUALLY', 'CUSTOM_PER_MEMBER'] &&
+        data.totalAmount is number && data.totalAmount >= 0 &&
+        (!('perMemberAmount' in data) || (data.perMemberAmount is number && data.perMemberAmount >= 0)) &&
+        data.month is string && data.month.size() <= 10 &&
+        data.deadline is string && data.deadline.size() <= 16 &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 400)) &&
+        (!('assignedMemberIds' in data) || (data.assignedMemberIds is list && data.assignedMemberIds.size() <= 200)) &&
+        (!('memberShares' in data) || data.memberShares is map) &&
+        (!('memberNames' in data) || data.memberNames is map) &&
+        (!('payments' in data) || data.payments is map) &&
+        (!('createdByUid' in data) || (data.createdByUid is string && data.createdByUid.size() <= 128)) &&
+        (!('createdByName' in data) || (data.createdByName is string && data.createdByName.size() <= 120));
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['messId', 'targetMemberId', 'title', 'message', 'isRead']) &&
+        data.keys().hasOnly(['messId', 'targetMemberId', 'targetMemberName', 'title', 'message', 'billId', 'amount', 'deadline', 'isRead', 'createdAt']) &&
+        data.messId is string && data.messId.size() <= 128 &&
+        data.targetMemberId is string && data.targetMemberId.size() <= 128 &&
+        (!('targetMemberName' in data) || (data.targetMemberName is string && data.targetMemberName.size() <= 120)) &&
+        data.title is string && data.title.size() <= 160 &&
+        data.message is string && data.message.size() <= 500 &&
+        (!('billId' in data) || (data.billId is string && data.billId.size() <= 128)) &&
+        (!('amount' in data) || data.amount is number) &&
+        (!('deadline' in data) || (data.deadline is string && data.deadline.size() <= 16)) &&
+        data.isRead is bool;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['action', 'performedByUid', 'details']) &&
+        data.keys().hasOnly(['action', 'performedByUid', 'performedByName', 'targetMemberId', 'targetMemberName', 'details', 'reason', 'timestamp']) &&
+        data.action is string && data.action.size() <= 80 &&
+        data.performedByUid is string && data.performedByUid.size() <= 128 &&
+        (!('performedByName' in data) || (data.performedByName is string && data.performedByName.size() <= 120)) &&
+        (!('targetMemberId' in data) || (data.targetMemberId is string && data.targetMemberId.size() <= 128)) &&
+        (!('targetMemberName' in data) || (data.targetMemberName is string && data.targetMemberName.size() <= 120)) &&
+        data.details is string && data.details.size() <= 600 &&
+        (!('reason' in data) || (data.reason is string && data.reason.size() <= 300));
+    }
+
+    // User profile matching uid (PII isolated to owner)
+    match /users/{userId} {
+      allow get: if isUser(userId) && isValidId(userId);
+      allow create: if isUser(userId) && isValidId(userId) && isValidUser(incoming());
+      allow update: if isUser(userId) && isValidId(userId) && isValidUser(incoming());
+      allow delete: if isUser(userId) && isValidId(userId);
+    }
+
+    // Mess root collection
+    match /messes/{messId} {
+      allow get: if isSignedIn() && isValidId(messId);
+      allow list: if isSignedIn() && request.auth.uid in resource.data.memberUids;
+      allow create: if isSignedIn() && isValidId(messId) && isValidMess(incoming()) &&
+        incoming().managerUid == request.auth.uid &&
+        request.auth.uid in incoming().memberUids;
+      allow update: if isSignedIn() && isValidId(messId) && isValidMess(incoming()) && (
+        isMessManager(messId) ||
+        (
+          incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt']) &&
+          incoming().managerUid == existing().managerUid &&
+          incoming().memberUids.hasAll(existing().memberUids) &&
+          request.auth.uid in incoming().memberUids &&
+          incoming().memberUids.size() <= existing().memberUids.size() + 1
+        )
+      );
+      allow delete: if isValidId(messId) && isMessManager(messId);
+
+      // Members subcollection
+      match /members/{memberId} {
+        allow get: if isValidId(messId) && isValidId(memberId) && (isMessMember(messId) || isUser(memberId));
+        allow list: if isMessMember(messId);
+        allow create: if isSignedIn() && isValidId(messId) && isValidId(memberId) && isValidMember(incoming()) && (
+          isMessManager(messId) ||
+          (isUser(memberId) && incoming().userId == request.auth.uid && incoming().role == 'MEMBER') ||
+          (isUser(memberId) && incoming().userId == request.auth.uid && incoming().role == 'MANAGER' &&
+            getAfter(/databases/$(database)/documents/messes/$(messId)).data.managerUid == request.auth.uid)
+        );
+        allow update: if isSignedIn() && isValidId(messId) && isValidId(memberId) && isValidMember(incoming()) && (
+          isMessManager(messId) ||
+          (isUser(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['autoBookEnabled', 'autoBookLunch', 'autoBookNight', 'autoBookUpdatedAt', 'displayName', 'room']))
+        );
+        allow delete: if isValidId(messId) && isValidId(memberId) && isMessManager(messId);
+      }
+
+      // Daily Meals subcollection
+      match /daily_meals/{dateId} {
+        allow get: if isValidId(messId) && isValidId(dateId) && isMessMember(messId);
+        allow list: if isMessMember(messId);
+        allow create: if isSignedIn() && isValidId(messId) && isValidId(dateId) && isMessMember(messId) && isValidDailyMeal(incoming());
+        allow update: if isSignedIn() && isValidId(messId) && isValidId(dateId) && isValidDailyMeal(incoming()) && (
+          isMessManager(messId) ||
+          (isMessMember(messId) && incoming().diff(existing()).affectedKeys().hasOnly(['bookings', 'updatedBy', 'updatedAt']))
+        );
+        allow delete: if isValidId(messId) && isValidId(dateId) && isMessManager(messId);
+      }
+
+      // Bazaar expenses subcollection
+      match /bazaar_expenses/{expenseId} {
+        allow get: if isValidId(messId) && isValidId(expenseId) && isMessMember(messId);
+        allow list: if isMessMember(messId);
+        allow create: if isSignedIn() && isValidId(messId) && isValidId(expenseId) && isMessMember(messId) && isValidBazaarExpense(incoming());
+        allow update: if isSignedIn() && isValidId(messId) && isValidId(expenseId) && isValidBazaarExpense(incoming()) && (
+          isMessManager(messId) || (isMessMember(messId) && existing().buyerMemberId == request.auth.uid)
+        );
+        allow delete: if isValidId(messId) && isValidId(expenseId) && (
+          isMessManager(messId) || (isMessMember(messId) && existing().buyerMemberId == request.auth.uid)
+        );
+      }
+
+      // Deposits subcollection - managers only
+      match /deposits/{depositId} {
+        allow get: if isValidId(messId) && isValidId(depositId) && isMessMember(messId);
+        allow list: if isMessMember(messId);
+        allow create, update: if isSignedIn() && isValidId(messId) && isValidId(depositId) && isMessManager(messId) && isValidDeposit(incoming());
+        allow delete: if isValidId(messId) && isValidId(depositId) && isMessManager(messId);
+      }
+
+      // Utility bills subcollection - managers only
+      match /utility_bills/{billId} {
+        allow get: if isValidId(messId) && isValidId(billId) && isMessMember(messId);
+        allow list: if isMessMember(messId);
+        allow create, update: if isSignedIn() && isValidId(messId) && isValidId(billId) && isMessManager(messId) && isValidUtilityBill(incoming());
+        allow delete: if isValidId(messId) && isValidId(billId) && isMessManager(messId);
+      }
+
+      // Shared Bills subcollection
+      match /shared_bills/{billId} {
+        allow get: if isValidId(messId) && isValidId(billId) && isMessMember(messId);
+        allow list: if isMessMember(messId);
+        allow create, update: if isSignedIn() && isValidId(messId) && isValidId(billId) && isMessManager(messId) && isValidSharedBill(incoming());
+        allow delete: if isValidId(messId) && isValidId(billId) && isMessManager(messId);
+      }
+
+      // In-App Notifications subcollection
+      match /notifications/{notificationId} {
+        allow get: if isValidId(messId) && isValidId(notificationId) && isMessMember(messId);
+        allow list: if isMessMember(messId);
+        allow create: if isSignedIn() && isValidId(messId) && isValidId(notificationId) && isMessManager(messId) && isValidNotification(incoming());
+        allow update: if isSignedIn() && isValidId(messId) && isValidId(notificationId) && isMessMember(messId) && isValidNotification(incoming()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['isRead']);
+        allow delete: if isValidId(messId) && isValidId(notificationId) && (
+          isMessManager(messId) || (isMessMember(messId) && existing().targetMemberId == request.auth.uid)
+        );
+      }
+
+      // Immutable Audit Logs
+      match /audit_logs/{logId} {
+        allow get: if isValidId(messId) && isValidId(logId) && isMessMember(messId);
+        allow list: if isMessMember(messId);
+        allow create: if isSignedIn() && isValidId(messId) && isValidId(logId) && isMessMember(messId) && isValidAuditLog(incoming()) && incoming().performedByUid == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+  }
+}
