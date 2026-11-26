@@ -88,11 +88,15 @@ interface MessContextValue {
   uiMessage: { text: string; tone: 'info' | 'error' } | null;
   isSubmitting: boolean;
   activeNav: NavTab;
+  isWalkthroughOpen: boolean;
+  walkthroughRunId: number;
 
   setActiveNav: (tab: NavTab) => void;
   setSelectedDate: (date: string) => void;
   clearUiMessage: () => void;
   showUiMessage: (text: string, tone?: 'info' | 'error') => void;
+  openWalkthrough: () => void;
+  closeWalkthrough: () => void;
 
   signInWithGoogle: () => Promise<void>;
   enterDemoMode: () => void;
@@ -236,8 +240,29 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const [activeNav, setActiveNav] = useState<NavTab>('dashboard');
   const [uiMessage, setUiMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isWalkthroughOpen, setIsWalkthroughOpen] = useState<boolean>(() => {
+    if (!isAutostart) return false;
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem('mess_meal_demo_tour_dismissed_v1') !== '1';
+  });
+  const [walkthroughRunId, setWalkthroughRunId] = useState(0);
 
   const autoSavedFinalRef = useRef<Set<string>>(new Set());
+
+  const openWalkthrough = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('mess_meal_demo_tour_dismissed_v1');
+    }
+    setWalkthroughRunId((prev) => prev + 1);
+    setIsWalkthroughOpen(true);
+  }, []);
+
+  const closeWalkthrough = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('mess_meal_demo_tour_dismissed_v1', '1');
+    }
+    setIsWalkthroughOpen(false);
+  }, []);
 
   const showUiMessage = useCallback((text: string, tone: 'info' | 'error' = 'info') => {
     setUiMessage({ text, tone });
@@ -501,15 +526,17 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       email: 'tanvir.demo@messmeal.app',
     });
     setActiveNav('dashboard');
-    showUiMessage('Entered Demo Mess Workspace.');
-  }, [showUiMessage]);
+    openWalkthrough();
+    showUiMessage('Entered Demo Mess Workspace with guided walkthrough.');
+  }, [openWalkthrough, showUiMessage]);
 
   const resetDemoWorkspace = useCallback(() => {
     demoMessService.resetDemoData();
     setSelectedMessId('GV-MESS-2026');
     setActiveNav('dashboard');
+    openWalkthrough();
     showUiMessage('Demo workspace reset to initial seed data.');
-  }, [showUiMessage]);
+  }, [openWalkthrough, showUiMessage]);
 
   const signOut = useCallback(async () => {
     if (authMode === 'firebase') {
@@ -518,6 +545,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     setAuthMode('unauthenticated');
     setAuthUser(null);
     setSelectedMessId('');
+    setIsWalkthroughOpen(false);
     setActiveNav('dashboard');
   }, [authMode]);
 
@@ -1361,11 +1389,15 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     uiMessage,
     isSubmitting,
     activeNav,
+    isWalkthroughOpen,
+    walkthroughRunId,
 
     setActiveNav,
     setSelectedDate,
     clearUiMessage,
     showUiMessage,
+    openWalkthrough,
+    closeWalkthrough,
     signInWithGoogle,
     enterDemoMode,
     resetDemoWorkspace,

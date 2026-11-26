@@ -684,3 +684,70 @@ export function computeMonthlyBazaarVsDeposits(params: {
     };
   });
 }
+
+export type MemberBalanceStatus = 'REFUNDABLE' | 'PAYABLE' | 'SETTLED';
+
+export interface MemberSummaryRow {
+  memberId: string;
+  memberName: string;
+  room: string;
+  isActive: boolean;
+  isCurrentUser: boolean;
+  totalDeposit: number;
+  totalUnits: number;
+  memberUnits: number;
+  guestUnits: number;
+  mealCost: number;
+  utilityCost: number;
+  sharedBillsUnpaid: number;
+  totalCost: number;
+  netBalance: number;
+  status: MemberBalanceStatus;
+}
+
+export function getMemberBalanceStatus(netBalance: number): MemberBalanceStatus {
+  if (Math.abs(netBalance) < 0.01) return 'SETTLED';
+  return netBalance > 0 ? 'REFUNDABLE' : 'PAYABLE';
+}
+
+export function buildMemberSummaryRows(params: {
+  settlements: MemberSettlement[];
+  members: Member[];
+  currentMemberId?: string;
+}): MemberSummaryRow[] {
+  const { settlements, members, currentMemberId = '' } = params;
+  const memberById = new Map<string, Member>();
+  for (const m of members) {
+    memberById.set(m.id, m);
+  }
+
+  const rows: MemberSummaryRow[] = settlements.map((s) => {
+    const memberObj = memberById.get(s.memberId);
+    const netBalance = roundTwoDecimals(s.netBalance);
+    return {
+      memberId: s.memberId,
+      memberName: s.memberName,
+      room: memberObj?.room?.trim() || '',
+      isActive: memberObj?.isActive !== false,
+      isCurrentUser: Boolean(currentMemberId) && s.memberId === currentMemberId,
+      totalDeposit: roundTwoDecimals(s.totalDeposit),
+      totalUnits: roundTwoDecimals(s.totalUnits),
+      memberUnits: roundTwoDecimals(s.memberUnits),
+      guestUnits: roundTwoDecimals(s.guestUnits),
+      mealCost: roundTwoDecimals(s.mealCost),
+      utilityCost: roundTwoDecimals(s.utilityCost),
+      sharedBillsUnpaid: roundTwoDecimals(s.sharedBillsUnpaid),
+      totalCost: roundTwoDecimals(s.totalCost),
+      netBalance,
+      status: getMemberBalanceStatus(netBalance),
+    };
+  });
+
+  rows.sort((a, b) => {
+    if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+    return a.memberName.localeCompare(b.memberName);
+  });
+
+  return rows;
+}
+

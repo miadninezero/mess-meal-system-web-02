@@ -106,7 +106,7 @@ export function SignInView() {
             className="w-full h-12 inline-flex items-center justify-center gap-2 px-5 text-sm font-semibold text-[#52443E] dark:text-[#EDE0DB] bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/50 dark:hover:bg-[#352A25] rounded-2xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <PlayCircle className="w-4 h-4 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
-            <span>Open Demo Mess</span>
+            <span>Open Demo Mess &amp; Walkthrough</span>
           </button>
         </div>
 

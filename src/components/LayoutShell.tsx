@@ -15,10 +15,12 @@ import {
   RotateCcw,
   X,
   ShieldCheck,
+  Compass,
 } from 'lucide-react';
 import { NavTab, useMess } from '../context/MessContext';
 import { Member } from '../types/mess';
 import { formatCurrency, formatTimestampDhaka } from '../utils/dhakaTime';
+import { DemoWalkthrough } from './DemoWalkthrough';
 import { MessLogo } from './MessLogo';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -53,6 +55,8 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     demoteManagerToMember,
     resignAsManager,
     resetDemoWorkspace,
+    openWalkthrough,
+    isWalkthroughOpen,
     signOut,
     uiMessage,
     clearUiMessage,
@@ -168,14 +172,24 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               <span>Switch / Join Mess</span>
             </button>
             {isDemoMode && (
-              <button
-                type="button"
-                onClick={resetDemoWorkspace}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] dark:bg-[#352A25] dark:hover:bg-[#52443E] rounded-lg transition-colors cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
-                <span>Reset Demo Data</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={openWalkthrough}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] dark:bg-[#352A25] dark:hover:bg-[#52443E] rounded-lg transition-colors cursor-pointer"
+                >
+                  <Compass className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
+                  <span>Walkthrough Guide</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={resetDemoWorkspace}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] dark:bg-[#352A25] dark:hover:bg-[#52443E] rounded-lg transition-colors cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
+                  <span>Reset Demo Data</span>
+                </button>
+              </>
             )}
             <button
               type="button"
@@ -204,6 +218,23 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {isDemoMode && (
+              <button
+                type="button"
+                onClick={openWalkthrough}
+                aria-label="Open Demo Walkthrough Guide"
+                aria-pressed={isWalkthroughOpen}
+                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold border rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  isWalkthroughOpen
+                    ? 'bg-[#FFDBCF] border-[#F2C3B2] text-[#381400] dark:bg-[#842B00] dark:border-[#A63D0A] dark:text-[#FFDBCF]'
+                    : 'bg-white dark:bg-[#221B18] border-[#E8D9D3] dark:border-[#3E322D] text-[#52443E] dark:text-[#D7C3BC] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25]'
+                }`}
+              >
+                <Compass className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
+                <span>Tour</span>
+              </button>
+            )}
+
             <ThemeToggle />
 
             <button
@@ -618,6 +649,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       )}
+      <DemoWalkthrough />
     </div>
   );
 }

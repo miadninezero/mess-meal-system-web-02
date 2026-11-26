@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildMemberSummaryRows,
   calculateAttendanceUnits,
   calculateBookingUnits,
   calculateSummary,
   computeKitchenOrderSummary,
   computeMonthlyBazaarVsDeposits,
+  getMemberBalanceStatus,
   resolveEffectiveBooking,
   roundTwoDecimals,
 } from './messCalculations';
@@ -348,3 +350,85 @@ test('Monthly finance comparison handles cross-year 6-month windows', () => {
   assert.equal(crossYear[3].bazaarExpenses, 1200);
   assert.equal(crossYear[4].memberDeposits, 3000);
 });
+
+test('Member summary rows calculate deposits, meals eaten, and balance status accurately', () => {
+  assert.equal(getMemberBalanceStatus(120.5), 'REFUNDABLE');
+  assert.equal(getMemberBalanceStatus(-45.2), 'PAYABLE');
+  assert.equal(getMemberBalanceStatus(0.004), 'SETTLED');
+  assert.equal(getMemberBalanceStatus(-0.004), 'SETTLED');
+
+  const members: Member[] = [
+    { ...makeMember('m1', 'Zahir'), room: '201', isActive: true },
+    { ...makeMember('m2', 'Amina'), room: '102', isActive: true },
+    { ...makeMember('m3', 'Bashir'), room: '305', isActive: false },
+  ];
+
+  const rows = buildMemberSummaryRows({
+    members,
+    currentMemberId: 'm1',
+    settlements: [
+      {
+        memberId: 'm1',
+        memberName: 'Zahir',
+        totalUnits: 42,
+        memberUnits: 40,
+        guestUnits: 2,
+        mealCost: 4200,
+        utilityCost: 500,
+        sharedBillsUnpaid: 0,
+        sharedBillsPaid: 500,
+        totalCost: 4700,
+        totalDeposit: 5000,
+        netBalance: 300,
+      },
+      {
+        memberId: 'm2',
+        memberName: 'Amina',
+        totalUnits: 30,
+        memberUnits: 30,
+        guestUnits: 0,
+        mealCost: 3000,
+        utilityCost: 500,
+        sharedBillsUnpaid: 200,
+        sharedBillsPaid: 0,
+        totalCost: 3700,
+        totalDeposit: 3000,
+        netBalance: -700,
+      },
+      {
+        memberId: 'm3',
+        memberName: 'Bashir',
+        totalUnits: 10,
+        memberUnits: 10,
+        guestUnits: 0,
+        mealCost: 1000,
+        utilityCost: 0,
+        sharedBillsUnpaid: 0,
+        sharedBillsPaid: 0,
+        totalCost: 1000,
+        totalDeposit: 1000,
+        netBalance: 0,
+      },
+    ],
+  });
+
+  // Active members sorted alphabetically first, inactive members last
+  assert.deepEqual(
+    rows.map((r) => r.memberName),
+    ['Amina', 'Zahir', 'Bashir']
+  );
+
+  assert.equal(rows[0].status, 'PAYABLE');
+  assert.equal(rows[0].totalDeposit, 3000);
+  assert.equal(rows[0].totalUnits, 30);
+  assert.equal(rows[0].isCurrentUser, false);
+
+  assert.equal(rows[1].status, 'REFUNDABLE');
+  assert.equal(rows[1].isCurrentUser, true);
+  assert.equal(rows[1].room, '201');
+  assert.equal(rows[1].guestUnits, 2);
+
+  assert.equal(rows[2].status, 'SETTLED');
+  assert.equal(rows[2].isActive, false);
+});
+

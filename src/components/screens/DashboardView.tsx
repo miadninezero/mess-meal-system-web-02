@@ -15,6 +15,7 @@ import {
   isFriday as checkIsFriday,
 } from '../../utils/dhakaTime';
 import { computeKitchenOrderSummary, resolveEffectiveBooking } from '../../utils/messCalculations';
+import { MemberSummary } from '../MemberSummary';
 import { MonthlyFinanceChart } from '../MonthlyFinanceChart';
 
 function formatUnits(value: number): string {
@@ -503,7 +504,16 @@ export function DashboardView() {
         referenceDate={todayDhakaDate}
       />
 
-      {/* 6. Compact Mess-Wide Overview Card (matches DashboardScreen.kt Mess Overview) */}
+      {/* 6. Member Summary Table (Deposits, Meals Eaten, Current Balance Status) */}
+      <MemberSummary
+        settlements={summary.memberSettlements}
+        members={members}
+        mealRate={summary.mealRate}
+        currentMemberId={myMemberId}
+        onOpenSettlement={() => setActiveNav('settlement')}
+      />
+
+      {/* 7. Compact Mess-Wide Overview Card (matches DashboardScreen.kt Mess Overview) */}
       <section className="bg-[#F4DFD7]/35 dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-2xl p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-display text-sm font-bold text-[#201A17] dark:text-[#EDE0DB]">
