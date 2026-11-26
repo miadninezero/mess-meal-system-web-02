@@ -5,6 +5,7 @@ import {
   calculateBookingUnits,
   calculateSummary,
   computeKitchenOrderSummary,
+  computeMonthlyBazaarVsDeposits,
   resolveEffectiveBooking,
   roundTwoDecimals,
 } from './messCalculations';
@@ -286,4 +287,64 @@ test('Kitchen summary aggregates member and guest portions cleanly', () => {
   assert.equal(ks.nightMemberCount, 2);
   assert.equal(ks.nightGuestCount, 1);
   assert.equal(ks.nightTotalPortions, 3);
+});
+
+test('Monthly bazaar vs deposits comparison aggregates last 6 months cleanly', () => {
+  const series = computeMonthlyBazaarVsDeposits({
+    referenceDate: '2026-11-26',
+    bazaarExpenses: [
+      { id: 'b0', buyerMemberId: 'm1', buyerName: 'A', amount: 999, itemsDescription: 'Too old', category: 'Misc', date: '2026-05-31' },
+      { id: 'b1', buyerMemberId: 'm1', buyerName: 'A', amount: 4200, itemsDescription: 'Rice', category: 'Groceries', date: '2026-06-12' },
+      { id: 'b2', buyerMemberId: 'm1', buyerName: 'A', amount: 3000.5, itemsDescription: 'Fish', category: 'Meat & Fish', date: '2026-06-25' },
+      { id: 'b3', buyerMemberId: 'm1', buyerName: 'A', amount: 8500, itemsDescription: 'Monthly', category: 'Groceries', date: '2026-10-08' },
+      { id: 'b4', buyerMemberId: 'm1', buyerName: 'A', amount: 4010, itemsDescription: 'Current', category: 'Groceries', date: '2026-11-25' },
+    ],
+    deposits: [
+      { id: 'd1', memberId: 'm1', memberName: 'A', amount: 8500, date: '2026-06-02', paymentMethod: 'Cash', notes: '', recordedBy: 'm1' },
+      { id: 'd2', memberId: 'm2', memberName: 'B', amount: 2500, date: '2026-09-05', paymentMethod: 'Bank', notes: '', recordedBy: 'm1' },
+      { id: 'd3', memberId: 'm1', memberName: 'A', amount: 13200, date: '2026-11-01', paymentMethod: 'Cash', notes: '', recordedBy: 'm1' },
+    ],
+  });
+
+  assert.equal(series.length, 6);
+  assert.deepEqual(
+    series.map((s) => s.monthKey),
+    ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11']
+  );
+  assert.deepEqual(
+    series.map((s) => s.label),
+    ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov']
+  );
+  assert.equal(series[0].bazaarExpenses, 7200.5);
+  assert.equal(series[0].memberDeposits, 8500);
+  assert.equal(series[0].netBalance, 1299.5);
+  assert.equal(series[1].bazaarExpenses, 0);
+  assert.equal(series[1].memberDeposits, 0);
+  assert.equal(series[3].memberDeposits, 2500);
+  assert.equal(series[4].bazaarExpenses, 8500);
+  assert.equal(series[5].bazaarExpenses, 4010);
+  assert.equal(series[5].memberDeposits, 13200);
+});
+
+test('Monthly finance comparison handles cross-year 6-month windows', () => {
+  const crossYear = computeMonthlyBazaarVsDeposits({
+    referenceDate: '2026-02-15',
+    bazaarExpenses: [
+      { id: 'b1', buyerMemberId: 'm1', buyerName: 'A', amount: 1200, itemsDescription: 'Dec', category: 'Misc', date: '2025-12-10' },
+    ],
+    deposits: [
+      { id: 'd1', memberId: 'm1', memberName: 'A', amount: 3000, date: '2026-01-03', paymentMethod: 'Cash', notes: '', recordedBy: 'm1' },
+    ],
+  });
+
+  assert.deepEqual(
+    crossYear.map((s) => s.monthKey),
+    ['2025-09', '2025-10', '2025-11', '2025-12', '2026-01', '2026-02']
+  );
+  assert.deepEqual(
+    crossYear.map((s) => s.label),
+    ["Sep '25", "Oct '25", "Nov '25", "Dec '25", "Jan '26", "Feb '26"]
+  );
+  assert.equal(crossYear[3].bazaarExpenses, 1200);
+  assert.equal(crossYear[4].memberDeposits, 3000);
 });

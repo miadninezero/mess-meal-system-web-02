@@ -83,23 +83,23 @@ export function DepositsView() {
   return (
     <div className="space-y-6">
       {/* Header Summary */}
-      <div className="bg-white border border-[#E8D9D3] rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-8">
           <div>
-            <div className="text-xs font-medium text-[#85736D]">Total Central Deposits</div>
-            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#2C5E8A]">
+            <div className="text-xs font-medium text-[#85736D] dark:text-[#A08C86]">Total Central Deposits</div>
+            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#2C5E8A] dark:text-[#98CBFA]">
               {formatCurrency(summary.totalDeposits)}
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium text-[#85736D]">Central Fund Remaining</div>
-            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#201A17]">
+            <div className="text-xs font-medium text-[#85736D] dark:text-[#A08C86]">Central Fund Remaining</div>
+            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#201A17] dark:text-[#EDE0DB]">
               {formatCurrency(summary.remainingFund)}
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium text-[#85736D]">Transactions</div>
-            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#201A17]">
+            <div className="text-xs font-medium text-[#85736D] dark:text-[#A08C86]">Transactions</div>
+            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#201A17] dark:text-[#EDE0DB]">
               {deposits.length}
             </div>
           </div>
@@ -109,7 +109,7 @@ export function DepositsView() {
           <button
             type="button"
             onClick={openAdd}
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             <span>Record Member Deposit</span>
@@ -118,23 +118,23 @@ export function DepositsView() {
       </div>
 
       {/* Member Contributions Summary */}
-      <div className="bg-white border border-[#E8D9D3] rounded-xl p-6 space-y-4">
-        <h2 className="font-display text-base font-bold text-[#201A17]">
+      <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-6 space-y-4">
+        <h2 className="font-display text-base font-bold text-[#201A17] dark:text-[#EDE0DB]">
           Member Deposit Totals
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {summary.memberSettlements.map((s) => (
             <div
               key={s.memberId}
-              className="p-4 rounded-lg border border-[#E8D9D3] flex items-center justify-between gap-3"
+              className="p-4 rounded-lg border border-[#E8D9D3] dark:border-[#3E322D] flex items-center justify-between gap-3"
             >
               <div className="min-w-0">
-                <div className="text-sm font-semibold text-[#201A17] truncate">{s.memberName}</div>
-                <div className="text-xs text-[#85736D] font-mono tabular-nums">
+                <div className="text-sm font-semibold text-[#201A17] dark:text-[#EDE0DB] truncate">{s.memberName}</div>
+                <div className="text-xs text-[#85736D] dark:text-[#A08C86] font-mono tabular-nums">
                   {deposits.filter((d) => d.memberId === s.memberId).length} deposit(s)
                 </div>
               </div>
-              <div className="font-mono tabular-nums font-bold text-[#201A17] shrink-0">
+              <div className="font-mono tabular-nums font-bold text-[#201A17] dark:text-[#EDE0DB] shrink-0">
                 {formatCurrency(s.totalDeposit)}
               </div>
             </div>
@@ -143,15 +143,15 @@ export function DepositsView() {
       </div>
 
       {/* Chronological Deposit Ledger */}
-      <div className="bg-white border border-[#E8D9D3] rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl overflow-hidden">
         {deposits.length === 0 ? (
           <div className="p-10 text-center space-y-3">
-            <p className="text-sm text-[#52443E]">No deposits recorded yet.</p>
+            <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">No deposits recorded yet.</p>
             {isManager && (
               <button
                 type="button"
                 onClick={openAdd}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Record First Deposit</span>
@@ -162,7 +162,7 @@ export function DepositsView() {
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-b border-[#E8D9D3] bg-[#F4DFD7]/35 text-xs font-medium text-[#85736D]">
+                <tr className="border-b border-[#E8D9D3] dark:border-[#3E322D] bg-[#F4DFD7]/35 dark:bg-[#352A25]/60 text-xs font-medium text-[#85736D] dark:text-[#A08C86]">
                   <th className="py-3 px-4">Date</th>
                   <th className="py-3 px-4">Member</th>
                   <th className="py-3 px-4">Channel</th>
@@ -171,22 +171,22 @@ export function DepositsView() {
                   {isManager && <th className="py-3 px-4 text-right">Actions</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E8D9D3]">
+              <tbody className="divide-y divide-[#E8D9D3] dark:divide-[#3E322D]">
                 {deposits.map((dep) => (
-                  <tr key={dep.id} className="hover:bg-[#F4DFD7]/35">
-                    <td className="py-3.5 px-4 font-mono tabular-nums text-[#52443E] whitespace-nowrap">
+                  <tr key={dep.id} className="hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25]/50">
+                    <td className="py-3.5 px-4 font-mono tabular-nums text-[#52443E] dark:text-[#D7C3BC] whitespace-nowrap">
                       {formatReadableDate(dep.date)}
                     </td>
-                    <td className="py-3.5 px-4 font-medium text-[#201A17] whitespace-nowrap">
+                    <td className="py-3.5 px-4 font-medium text-[#201A17] dark:text-[#EDE0DB] whitespace-nowrap">
                       {dep.memberName}
                     </td>
-                    <td className="py-3.5 px-4 text-[#52443E] whitespace-nowrap">
+                    <td className="py-3.5 px-4 text-[#52443E] dark:text-[#D7C3BC] whitespace-nowrap">
                       {dep.paymentMethod}
                     </td>
-                    <td className="py-3.5 px-4 text-[#52443E] max-w-md truncate">
+                    <td className="py-3.5 px-4 text-[#52443E] dark:text-[#D7C3BC] max-w-md truncate">
                       {dep.notes || '—'}
                     </td>
-                    <td className="py-3.5 px-4 text-right font-mono tabular-nums font-semibold text-[#2C5E8A] whitespace-nowrap">
+                    <td className="py-3.5 px-4 text-right font-mono tabular-nums font-semibold text-[#2C5E8A] dark:text-[#98CBFA] whitespace-nowrap">
                       {formatCurrency(dep.amount)}
                     </td>
                     {isManager && (
@@ -196,7 +196,7 @@ export function DepositsView() {
                             type="button"
                             aria-label={`Edit deposit for ${dep.memberName}`}
                             onClick={() => openEdit(dep)}
-                            className="p-1.5 text-[#85736D] hover:text-[#201A17] rounded hover:bg-[#F4DFD7]/50 cursor-pointer"
+                            className="p-1.5 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] rounded hover:bg-[#F4DFD7]/50 dark:hover:bg-[#352A25] cursor-pointer"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
@@ -204,7 +204,7 @@ export function DepositsView() {
                             type="button"
                             aria-label={`Delete deposit for ${dep.memberName}`}
                             onClick={() => setDeletingDeposit(dep)}
-                            className="p-1.5 text-[#85736D] hover:text-rose-700 rounded hover:bg-rose-50 cursor-pointer"
+                            className="p-1.5 text-[#85736D] dark:text-[#A08C86] hover:text-rose-700 dark:hover:text-[#FFB4AB] rounded hover:bg-rose-50 dark:hover:bg-[#93000A]/30 cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -221,13 +221,13 @@ export function DepositsView() {
 
       {/* Add / Edit Deposit Modal */}
       {(showAddModal || editingDeposit) && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 flex items-center justify-center p-4">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4">
           <form
             onSubmit={handleSave}
-            className="bg-white border border-[#E8D9D3] rounded-xl max-w-md w-full p-6 space-y-4"
+            className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl max-w-md w-full p-6 space-y-4"
           >
             <div className="flex items-center justify-between">
-              <h3 className="font-display font-bold text-[#201A17]">
+              <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">
                 {editingDeposit ? 'Edit Member Deposit' : 'Record Member Deposit'}
               </h3>
               <button
@@ -237,28 +237,28 @@ export function DepositsView() {
                   setEditingDeposit(null);
                 }}
                 aria-label="Close deposit modal"
-                className="p-1 text-[#85736D] hover:text-[#201A17] cursor-pointer"
+                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {formError && (
-              <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">
+              <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-[#93000A]/40 border border-rose-200 dark:border-[#93000A] text-xs text-rose-800 dark:text-[#FFDAD6]">
                 {formError}
               </div>
             )}
 
             <div className="space-y-3">
               <div>
-                <label htmlFor="dep-member" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="dep-member" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Member
                 </label>
                 <select
                   id="dep-member"
                   value={memberId}
                   onChange={(e) => setMemberId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                 >
                   {members.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -269,7 +269,7 @@ export function DepositsView() {
               </div>
 
               <div>
-                <label htmlFor="dep-amount" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="dep-amount" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Deposit Amount (৳)
                 </label>
                 <input
@@ -280,13 +280,13 @@ export function DepositsView() {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="e.g. 3000"
-                  className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="dep-date" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="dep-date" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Date
                 </label>
                 <div className="flex items-center gap-2">
@@ -295,20 +295,20 @@ export function DepositsView() {
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="flex-1 px-3 py-2 text-sm font-mono border border-[#85736D]/50 rounded-lg"
+                    className="flex-1 px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setDate(todayDhakaDate)}
-                    className="px-2.5 py-2 text-xs font-medium bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] text-[#201A17] rounded-lg cursor-pointer"
+                    className="px-2.5 py-2 text-xs font-medium bg-[#F4DFD7]/50 dark:bg-[#352A25] hover:bg-[#F4DFD7] dark:hover:bg-[#463832] text-[#201A17] dark:text-[#EDE0DB] rounded-lg cursor-pointer"
                   >
                     Today
                   </button>
                   <button
                     type="button"
                     onClick={() => setDate(shiftDate(todayDhakaDate, -1))}
-                    className="px-2.5 py-2 text-xs font-medium bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] text-[#201A17] rounded-lg cursor-pointer"
+                    className="px-2.5 py-2 text-xs font-medium bg-[#F4DFD7]/50 dark:bg-[#352A25] hover:bg-[#F4DFD7] dark:hover:bg-[#463832] text-[#201A17] dark:text-[#EDE0DB] rounded-lg cursor-pointer"
                   >
                     Yesterday
                   </button>
@@ -316,7 +316,7 @@ export function DepositsView() {
               </div>
 
               <div>
-                <span className="block text-xs font-medium text-[#52443E] mb-1.5">
+                <span className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1.5">
                   Payment Channel
                 </span>
                 <div className="grid grid-cols-4 gap-1.5">
@@ -327,8 +327,8 @@ export function DepositsView() {
                       onClick={() => setPaymentMethod(method)}
                       className={`py-1.5 px-2 text-xs font-medium rounded-lg border cursor-pointer ${
                         paymentMethod === method
-                          ? 'bg-[#C05621] text-white border-[#C05621]'
-                          : 'bg-white text-[#52443E] border-[#85736D]/50 hover:bg-[#F4DFD7]/35'
+                          ? 'bg-[#C05621] text-white border-[#C05621] dark:bg-[#FFB59A] dark:text-[#5F1B00] dark:border-[#FFB59A]'
+                          : 'bg-white dark:bg-[#1A1412] text-[#52443E] dark:text-[#D7C3BC] border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25]'
                       }`}
                     >
                       {method}
@@ -338,7 +338,7 @@ export function DepositsView() {
               </div>
 
               <div>
-                <label htmlFor="dep-notes" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="dep-notes" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Notes / Reference (Optional)
                 </label>
                 <input
@@ -347,7 +347,7 @@ export function DepositsView() {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="e.g. Monthly advance"
-                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                 />
               </div>
             </div>
@@ -359,13 +359,13 @@ export function DepositsView() {
                   setShowAddModal(false);
                   setEditingDeposit(null);
                 }}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#85736D]/50 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
               >
                 {editingDeposit ? 'Save Changes' : 'Save Deposit'}
               </button>
@@ -376,10 +376,10 @@ export function DepositsView() {
 
       {/* Delete Deposit Confirmation */}
       {deletingDeposit && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E8D9D3] rounded-xl max-w-md w-full p-6 space-y-4">
-            <h3 className="font-display font-bold text-[#201A17]">Delete Deposit?</h3>
-            <p className="text-sm text-[#52443E]">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Delete Deposit?</h3>
+            <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
               Remove deposit of <strong>{formatCurrency(deletingDeposit.amount)}</strong> for{' '}
               <strong>{deletingDeposit.memberName}</strong>? This action is recorded in the audit
               trail.
@@ -388,7 +388,7 @@ export function DepositsView() {
               <button
                 type="button"
                 onClick={() => setDeletingDeposit(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#85736D]/50 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>

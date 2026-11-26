@@ -10,14 +10,17 @@ import { DepositsView } from './components/screens/DepositsView';
 import { SettlementView } from './components/screens/SettlementView';
 import { SharedBillsView } from './components/screens/SharedBillsView';
 import { MessProvider, useMess } from './context/MessContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 function MessWorkspaceRouter() {
   const { authMode, selectedMessId, activeNav } = useMess();
 
   if (authMode === 'loading') {
     return (
-      <div className="min-h-screen bg-[#FCFAF7] flex items-center justify-center">
-        <div className="text-sm font-medium text-[#52443E]">Loading Mess Meal...</div>
+      <div className="min-h-screen bg-[#FCFAF7] dark:bg-[#171210] flex items-center justify-center">
+        <div className="text-sm font-medium text-[#52443E] dark:text-[#D7C3BC]">
+          Loading Mess Meal...
+        </div>
       </div>
     );
   }
@@ -44,10 +47,12 @@ function MessWorkspaceRouter() {
 
 export default function App() {
   return (
-    <ErrorBoundary>
-      <MessProvider>
-        <MessWorkspaceRouter />
-      </MessProvider>
-    </ErrorBoundary>
+    <ThemeProvider>
+      <ErrorBoundary>
+        <MessProvider>
+          <MessWorkspaceRouter />
+        </MessProvider>
+      </ErrorBoundary>
+    </ThemeProvider>
   );
 }

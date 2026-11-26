@@ -183,23 +183,23 @@ export function SharedBillsView() {
   return (
     <div className="space-y-6">
       {/* Top KPI Bar */}
-      <div className="bg-white border border-[#E8D9D3] rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-8">
           <div>
-            <div className="text-xs font-medium text-[#85736D]">Total Billed</div>
-            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#201A17]">
+            <div className="text-xs font-medium text-[#85736D] dark:text-[#A08C86]">Total Billed</div>
+            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#201A17] dark:text-[#EDE0DB]">
               {formatCurrency(summary.totalSharedBills)}
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium text-[#85736D]">Total Collected</div>
-            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#0D7351]">
+            <div className="text-xs font-medium text-[#85736D] dark:text-[#A08C86]">Total Collected</div>
+            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-[#0D7351] dark:text-[#89D6B7]">
               {formatCurrency(summary.totalSharedBillsCollected)}
             </div>
           </div>
           <div>
-            <div className="text-xs font-medium text-[#85736D]">Outstanding</div>
-            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-rose-700">
+            <div className="text-xs font-medium text-[#85736D] dark:text-[#A08C86]">Outstanding</div>
+            <div className="mt-1 font-display text-2xl font-bold font-mono tabular-nums text-rose-700 dark:text-[#FFB4AB]">
               {formatCurrency(summary.totalSharedBillsUnpaid)}
             </div>
           </div>
@@ -209,7 +209,7 @@ export function SharedBillsView() {
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             <span>Create Shared Bill</span>
@@ -219,15 +219,15 @@ export function SharedBillsView() {
 
       {/* Bills List */}
       {sharedBills.length === 0 ? (
-        <div className="bg-white border border-[#E8D9D3] rounded-xl p-10 text-center space-y-3">
-          <p className="text-sm text-[#52443E]">
+        <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-10 text-center space-y-3">
+          <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
             No shared bills published yet (e.g. Wi-Fi, Maid, Electricity, Gas).
           </p>
           {isManager && (
             <button
               type="button"
               onClick={openCreate}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Publish First Shared Bill</span>
@@ -254,29 +254,29 @@ export function SharedBillsView() {
                   : 'Divided Equally';
 
             return (
-              <div key={bill.id} className="bg-white border border-[#E8D9D3] rounded-xl overflow-hidden">
+              <div key={bill.id} className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl overflow-hidden">
                 <div className="p-6 space-y-4">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="space-y-1">
-                      <h3 className="font-display text-lg font-bold text-[#201A17]">
+                      <h3 className="font-display text-lg font-bold text-[#201A17] dark:text-[#EDE0DB]">
                         {bill.title}
                       </h3>
-                      <div className="text-xs text-[#85736D]">
+                      <div className="text-xs text-[#85736D] dark:text-[#A08C86]">
                         {allocLabel} · Due {formatReadableDate(bill.deadline)} ·{' '}
                         <span className="font-mono tabular-nums">
                           {stats.paidMembersCount} Paid / {stats.partiallyPaidMembersCount} Partial /{' '}
                           {stats.unpaidMembersCount} Unpaid
                         </span>
                       </div>
-                      {bill.notes && <p className="text-sm text-[#52443E] pt-1">{bill.notes}</p>}
+                      {bill.notes && <p className="text-sm text-[#52443E] dark:text-[#D7C3BC] pt-1">{bill.notes}</p>}
                     </div>
 
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="font-display text-xl font-bold font-mono tabular-nums text-[#201A17]">
+                        <div className="font-display text-xl font-bold font-mono tabular-nums text-[#201A17] dark:text-[#EDE0DB]">
                           {formatCurrency(bill.totalAmount)}
                         </div>
-                        <div className="text-xs font-mono tabular-nums text-[#85736D]">
+                        <div className="text-xs font-mono tabular-nums text-[#85736D] dark:text-[#A08C86]">
                           Collected {formatCurrency(stats.totalCollected)} ({pct}%)
                         </div>
                       </div>
@@ -286,7 +286,7 @@ export function SharedBillsView() {
                             type="button"
                             aria-label={`Edit shared bill ${bill.title}`}
                             onClick={() => openEdit(bill)}
-                            className="p-2 text-[#85736D] hover:text-[#201A17] rounded-lg hover:bg-[#F4DFD7]/50 cursor-pointer"
+                            className="p-2 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] rounded-lg hover:bg-[#F4DFD7]/50 dark:hover:bg-[#352A25] cursor-pointer"
                           >
                             <Pencil className="w-4 h-4" />
                           </button>
@@ -294,7 +294,7 @@ export function SharedBillsView() {
                             type="button"
                             aria-label={`Delete shared bill ${bill.title}`}
                             onClick={() => setDeletingBill(bill)}
-                            className="p-2 text-[#85736D] hover:text-rose-700 rounded-lg hover:bg-rose-50 cursor-pointer"
+                            className="p-2 text-[#85736D] dark:text-[#A08C86] hover:text-rose-700 dark:hover:text-[#FFB4AB] rounded-lg hover:bg-rose-50 dark:hover:bg-[#93000A]/30 cursor-pointer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -304,27 +304,27 @@ export function SharedBillsView() {
                   </div>
 
                   {/* Progress Bar */}
-                  <div className="w-full h-2 bg-[#F4DFD7] rounded-full overflow-hidden">
+                  <div className="w-full h-2 bg-[#F4DFD7] dark:bg-[#352A25] rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-[#0D7351] transition-all"
+                      className="h-full bg-[#0D7351] dark:bg-[#89D6B7] transition-all"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                    <div className="text-xs text-[#52443E]">
+                    <div className="text-xs text-[#52443E] dark:text-[#D7C3BC]">
                       Your share:{' '}
-                      <span className="font-mono tabular-nums font-semibold text-[#201A17]">
+                      <span className="font-mono tabular-nums font-semibold text-[#201A17] dark:text-[#EDE0DB]">
                         {formatCurrency(getMemberShare(bill, myMemberId))}
                       </span>{' '}
                       ·{' '}
                       <span
                         className={
                           myStatus === BillPaymentStatus.PAID
-                            ? 'text-[#0D7351] font-semibold'
+                            ? 'text-[#0D7351] dark:text-[#89D6B7] font-semibold'
                             : myStatus === BillPaymentStatus.PARTIALLY_PAID
-                              ? 'text-amber-700 font-semibold'
-                              : 'text-rose-700 font-semibold'
+                              ? 'text-amber-700 dark:text-[#FFB59A] font-semibold'
+                              : 'text-rose-700 dark:text-[#FFB4AB] font-semibold'
                         }
                       >
                         {myStatus === BillPaymentStatus.PAID
@@ -338,7 +338,7 @@ export function SharedBillsView() {
                     <button
                       type="button"
                       onClick={() => setExpandedBillId(isExpanded ? null : bill.id)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#52443E] hover:text-[#201A17] cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#52443E] dark:text-[#D7C3BC] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
                     >
                       <span>{isExpanded ? 'Hide Member Roster' : 'Show Member Roster'}</span>
                       {isExpanded ? (
@@ -352,10 +352,10 @@ export function SharedBillsView() {
 
                 {/* Member Payment Roster */}
                 {isExpanded && (
-                  <div className="border-t border-[#E8D9D3] bg-[#F4DFD7]/45 p-4 overflow-x-auto">
+                  <div className="border-t border-[#E8D9D3] dark:border-[#3E322D] bg-[#F4DFD7]/45 dark:bg-[#171210]/70 p-4 overflow-x-auto">
                     <table className="w-full text-left border-collapse text-sm">
                       <thead>
-                        <tr className="border-b border-[#E8D9D3] text-xs font-medium text-[#85736D]">
+                        <tr className="border-b border-[#E8D9D3] dark:border-[#3E322D] text-xs font-medium text-[#85736D] dark:text-[#A08C86]">
                           <th className="py-2 pr-4">Member</th>
                           <th className="py-2 pr-4 text-right">Share</th>
                           <th className="py-2 pr-4 text-right">Paid</th>
@@ -364,7 +364,7 @@ export function SharedBillsView() {
                           {isManager && <th className="py-2 text-right">Action</th>}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E8D9D3]">
+                      <tbody className="divide-y divide-[#E8D9D3] dark:divide-[#3E322D]">
                         {bill.assignedMemberIds.map((memberId) => {
                           const name =
                             bill.memberNames[memberId] ||
@@ -379,30 +379,30 @@ export function SharedBillsView() {
                           return (
                             <tr key={memberId}>
                               <td className="py-2.5 pr-4">
-                                <div className="font-medium text-[#201A17]">{name}</div>
+                                <div className="font-medium text-[#201A17] dark:text-[#EDE0DB]">{name}</div>
                                 {payRec?.paymentDate && (
-                                  <div className="text-xs text-[#85736D]">
+                                  <div className="text-xs text-[#85736D] dark:text-[#A08C86]">
                                     {payRec.paymentMethod} · {formatReadableDate(payRec.paymentDate)}
                                   </div>
                                 )}
                               </td>
-                              <td className="py-2.5 pr-4 text-right font-mono tabular-nums text-[#52443E]">
+                              <td className="py-2.5 pr-4 text-right font-mono tabular-nums text-[#52443E] dark:text-[#D7C3BC]">
                                 {formatCurrency(share)}
                               </td>
-                              <td className="py-2.5 pr-4 text-right font-mono tabular-nums text-[#0D7351] font-medium">
+                              <td className="py-2.5 pr-4 text-right font-mono tabular-nums text-[#0D7351] dark:text-[#89D6B7] font-medium">
                                 {formatCurrency(paid)}
                               </td>
-                              <td className="py-2.5 pr-4 text-right font-mono tabular-nums text-rose-700 font-medium">
+                              <td className="py-2.5 pr-4 text-right font-mono tabular-nums text-rose-700 dark:text-[#FFB4AB] font-medium">
                                 {formatCurrency(due)}
                               </td>
                               <td className="py-2.5 pr-4">
                                 <span
                                   className={`text-xs font-semibold ${
                                     status === BillPaymentStatus.PAID
-                                      ? 'text-[#0D7351]'
+                                      ? 'text-[#0D7351] dark:text-[#89D6B7]'
                                       : status === BillPaymentStatus.PARTIALLY_PAID
-                                        ? 'text-amber-700'
-                                        : 'text-rose-700'
+                                        ? 'text-amber-700 dark:text-[#FFB59A]'
+                                        : 'text-rose-700 dark:text-[#FFB4AB]'
                                   }`}
                                 >
                                   {status.replace('_', ' ')}
@@ -413,7 +413,7 @@ export function SharedBillsView() {
                                   <button
                                     type="button"
                                     onClick={() => openPaymentModal(bill, memberId)}
-                                    className="px-3 py-1 text-xs font-medium text-[#52443E] bg-white border border-[#85736D]/50 hover:bg-[#F4DFD7]/50 rounded-lg whitespace-nowrap cursor-pointer"
+                                    className="px-3 py-1 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-white dark:bg-[#221B18] border border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/50 dark:hover:bg-[#352A25] rounded-lg whitespace-nowrap cursor-pointer"
                                   >
                                     Record Payment
                                   </button>
@@ -434,18 +434,18 @@ export function SharedBillsView() {
 
       {/* Create Shared Bill Modal */}
       {showCreateModal && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 flex items-center justify-center p-4">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4">
           <form
             onSubmit={handleCreate}
-            className="bg-white border border-[#E8D9D3] rounded-xl max-w-lg w-full max-h-[90vh] flex flex-col"
+            className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl max-w-lg w-full max-h-[90vh] flex flex-col"
           >
-            <div className="px-6 py-4 border-b border-[#E8D9D3] flex items-center justify-between">
-              <h3 className="font-display font-bold text-[#201A17]">Publish Shared Bill</h3>
+            <div className="px-6 py-4 border-b border-[#E8D9D3] dark:border-[#3E322D] flex items-center justify-between">
+              <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Publish Shared Bill</h3>
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
                 aria-label="Close create bill modal"
-                className="p-1 text-[#85736D] hover:text-[#201A17] cursor-pointer"
+                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -453,13 +453,13 @@ export function SharedBillsView() {
 
             <div className="p-6 overflow-y-auto space-y-4">
               {formError && (
-                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800">
+                <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-[#93000A]/40 border border-rose-200 dark:border-[#93000A] text-xs text-rose-800 dark:text-[#FFDAD6]">
                   {formError}
                 </div>
               )}
 
               <div>
-                <label htmlFor="sb-title" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="sb-title" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Bill Title
                 </label>
                 <input
@@ -468,13 +468,13 @@ export function SharedBillsView() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Fiber Wi-Fi, Electricity, Maid Service"
-                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                   required
                 />
               </div>
 
               <div>
-                <span className="block text-xs font-medium text-[#52443E] mb-1.5">
+                <span className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1.5">
                   Allocation Mode ({activeMembers.length} active members)
                 </span>
                 <div className="grid grid-cols-3 gap-2">
@@ -489,8 +489,8 @@ export function SharedBillsView() {
                       onClick={() => setAllocationType(opt.id)}
                       className={`py-2 px-2 text-xs font-semibold rounded-lg border cursor-pointer ${
                         allocationType === opt.id
-                          ? 'bg-[#C05621] text-white border-[#C05621]'
-                          : 'bg-white text-[#52443E] border-[#85736D]/50 hover:bg-[#F4DFD7]/35'
+                          ? 'bg-[#C05621] text-white border-[#C05621] dark:bg-[#FFB59A] dark:text-[#5F1B00] dark:border-[#FFB59A]'
+                          : 'bg-white dark:bg-[#1A1412] text-[#52443E] dark:text-[#D7C3BC] border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25]'
                       }`}
                     >
                       {opt.label}
@@ -501,7 +501,7 @@ export function SharedBillsView() {
 
               {allocationType !== BillAllocationType.CUSTOM_PER_MEMBER ? (
                 <div>
-                  <label htmlFor="sb-amount" className="block text-xs font-medium text-[#52443E] mb-1">
+                  <label htmlFor="sb-amount" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                     {allocationType === BillAllocationType.FIXED_PER_MEMBER
                       ? 'Amount Per Member (৳)'
                       : 'Total Bill Amount (৳)'}
@@ -514,18 +514,18 @@ export function SharedBillsView() {
                     value={amountInput}
                     onChange={(e) => setAmountInput(e.target.value)}
                     placeholder="e.g. 1500"
-                    className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                     required
                   />
                 </div>
               ) : (
-                <div className="space-y-2 border border-[#E8D9D3] rounded-lg p-3 bg-[#FCFAF7]">
-                  <div className="text-xs font-semibold text-[#52443E]">
+                <div className="space-y-2 border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg p-3 bg-[#FCFAF7] dark:bg-[#171210]">
+                  <div className="text-xs font-semibold text-[#52443E] dark:text-[#D7C3BC]">
                     Individual Member Shares (৳)
                   </div>
                   {activeMembers.map((m) => (
                     <div key={m.id} className="flex items-center justify-between gap-3">
-                      <label htmlFor={`cs-${m.id}`} className="text-sm text-[#52443E] truncate">
+                      <label htmlFor={`cs-${m.id}`} className="text-sm text-[#52443E] dark:text-[#D7C3BC] truncate">
                         {m.displayName}
                       </label>
                       <input
@@ -538,7 +538,7 @@ export function SharedBillsView() {
                           setCustomShares((prev) => ({ ...prev, [m.id]: e.target.value }))
                         }
                         placeholder="0"
-                        className="w-28 px-2.5 py-1.5 text-sm font-mono text-right border border-[#85736D]/50 rounded bg-white"
+                        className="w-28 px-2.5 py-1.5 text-sm font-mono text-right border border-[#85736D]/50 dark:border-[#52443E] rounded bg-white dark:bg-[#1A1412]"
                       />
                     </div>
                   ))}
@@ -547,7 +547,7 @@ export function SharedBillsView() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="sb-deadline" className="block text-xs font-medium text-[#52443E] mb-1">
+                  <label htmlFor="sb-deadline" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                     Payment Deadline
                   </label>
                   <input
@@ -555,12 +555,12 @@ export function SharedBillsView() {
                     type="date"
                     value={deadline}
                     onChange={(e) => setDeadline(e.target.value)}
-                    className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="sb-notes" className="block text-xs font-medium text-[#52443E] mb-1">
+                  <label htmlFor="sb-notes" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                     Notes (Optional)
                   </label>
                   <input
@@ -569,23 +569,23 @@ export function SharedBillsView() {
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Account / instructions"
-                    className="w-full px-3 py-2 text-sm border border-[#85736D]/50 rounded-lg"
+                    className="w-full px-3 py-2 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-[#E8D9D3] flex justify-end gap-2">
+            <div className="px-6 py-4 border-t border-[#E8D9D3] dark:border-[#3E322D] flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#85736D]/50 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
               >
                 Publish &amp; Notify Members
               </button>
@@ -596,18 +596,18 @@ export function SharedBillsView() {
 
       {/* Edit Shared Bill Modal */}
       {editingBill && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 flex items-center justify-center p-4">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4">
           <form
             onSubmit={handleEditSave}
-            className="bg-white border border-[#E8D9D3] rounded-xl max-w-lg w-full max-h-[90vh] flex flex-col"
+            className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl max-w-lg w-full max-h-[90vh] flex flex-col"
           >
-            <div className="px-6 py-4 border-b border-[#E8D9D3] flex items-center justify-between">
-              <h3 className="font-display font-bold text-[#201A17]">Edit Shared Bill</h3>
+            <div className="px-6 py-4 border-b border-[#E8D9D3] dark:border-[#3E322D] flex items-center justify-between">
+              <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Edit Shared Bill</h3>
               <button
                 type="button"
                 onClick={() => setEditingBill(null)}
                 aria-label="Close edit bill modal"
-                className="p-1 text-[#85736D] hover:text-[#201A17] cursor-pointer"
+                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -615,7 +615,7 @@ export function SharedBillsView() {
 
             <div className="p-6 overflow-y-auto space-y-4">
               <div>
-                <label htmlFor="eb-title" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="eb-title" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Bill Title
                 </label>
                 <input
@@ -623,12 +623,12 @@ export function SharedBillsView() {
                   type="text"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                   required
                 />
               </div>
               <div>
-                <label htmlFor="eb-deadline" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="eb-deadline" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Deadline
                 </label>
                 <input
@@ -636,12 +636,12 @@ export function SharedBillsView() {
                   type="date"
                   value={editDeadline}
                   onChange={(e) => setEditDeadline(e.target.value)}
-                  className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                   required
                 />
               </div>
               <div>
-                <label htmlFor="eb-notes" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="eb-notes" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Notes
                 </label>
                 <input
@@ -649,23 +649,23 @@ export function SharedBillsView() {
                   type="text"
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => setCustomizeEditShares((v) => !v)}
-                className="text-xs font-semibold text-[#0D7351] hover:underline cursor-pointer"
+                className="text-xs font-semibold text-[#0D7351] dark:text-[#89D6B7] hover:underline cursor-pointer"
               >
                 {customizeEditShares ? 'Hide Individual Share Overrides' : 'Customize Individual Shares'}
               </button>
 
               {customizeEditShares && (
-                <div className="space-y-2 border border-[#E8D9D3] rounded-lg p-3 bg-[#FCFAF7]">
+                <div className="space-y-2 border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg p-3 bg-[#FCFAF7] dark:bg-[#171210]">
                   {editingBill.assignedMemberIds.map((id) => (
                     <div key={id} className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-[#52443E]">
+                      <span className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
                         {editingBill.memberNames[id] || id}
                       </span>
                       <input
@@ -676,7 +676,7 @@ export function SharedBillsView() {
                         onChange={(e) =>
                           setEditCustomShares((prev) => ({ ...prev, [id]: e.target.value }))
                         }
-                        className="w-28 px-2.5 py-1.5 text-sm font-mono text-right border border-[#85736D]/50 rounded bg-white"
+                        className="w-28 px-2.5 py-1.5 text-sm font-mono text-right border border-[#85736D]/50 dark:border-[#52443E] rounded bg-white dark:bg-[#1A1412]"
                       />
                     </div>
                   ))}
@@ -684,17 +684,17 @@ export function SharedBillsView() {
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-[#E8D9D3] flex justify-end gap-2">
+            <div className="px-6 py-4 border-t border-[#E8D9D3] dark:border-[#3E322D] flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setEditingBill(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#85736D]/50 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
               >
                 Save Changes
               </button>
@@ -705,14 +705,14 @@ export function SharedBillsView() {
 
       {/* Record Payment Modal */}
       {paymentTarget && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E8D9D3] rounded-xl max-w-md w-full p-6 space-y-4">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-display font-bold text-[#201A17]">
+                <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">
                   Record Payment: {paymentTarget.memberName}
                 </h3>
-                <p className="text-xs text-[#85736D] font-mono tabular-nums">
+                <p className="text-xs text-[#85736D] dark:text-[#A08C86] font-mono tabular-nums">
                   Assigned Share: {formatCurrency(paymentTarget.assignedShare)}
                 </p>
               </div>
@@ -720,7 +720,7 @@ export function SharedBillsView() {
                 type="button"
                 onClick={() => setPaymentTarget(null)}
                 aria-label="Close payment modal"
-                className="p-1 text-[#85736D] hover:text-[#201A17] cursor-pointer"
+                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -730,14 +730,14 @@ export function SharedBillsView() {
               <button
                 type="button"
                 onClick={() => setPayAmount(String(paymentTarget.assignedShare))}
-                className="flex-1 py-1.5 text-xs font-semibold text-[#0D7351] bg-[#A5F2D2]/50 hover:bg-[#A5F2D2] rounded-lg cursor-pointer"
+                className="flex-1 py-1.5 text-xs font-semibold text-[#0D7351] dark:text-[#A5F2D2] bg-[#A5F2D2]/50 dark:bg-[#005238] hover:bg-[#A5F2D2] dark:hover:bg-[#006B49] rounded-lg cursor-pointer"
               >
                 Full Share ({formatCurrency(paymentTarget.assignedShare)})
               </button>
               <button
                 type="button"
                 onClick={() => setPayAmount('0')}
-                className="flex-1 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-lg cursor-pointer"
+                className="flex-1 py-1.5 text-xs font-semibold text-rose-700 dark:text-[#FFB4AB] bg-rose-50 dark:bg-[#93000A]/40 hover:bg-rose-100 dark:hover:bg-[#93000A]/60 rounded-lg cursor-pointer"
               >
                 Mark Unpaid (৳0)
               </button>
@@ -745,7 +745,7 @@ export function SharedBillsView() {
 
             <div className="space-y-3">
               <div>
-                <label htmlFor="pay-amount" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="pay-amount" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Amount Paid (৳)
                 </label>
                 <input
@@ -755,20 +755,20 @@ export function SharedBillsView() {
                   min="0"
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
-                  className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="pay-method" className="block text-xs font-medium text-[#52443E] mb-1">
+                  <label htmlFor="pay-method" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                     Method
                   </label>
                   <select
                     id="pay-method"
                     value={payMethod}
                     onChange={(e) => setPayMethod(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-[#85736D]/50 rounded-lg"
+                    className="w-full px-3 py-2 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                   >
                     {PAYMENT_METHODS.map((m) => (
                       <option key={m} value={m}>
@@ -778,7 +778,7 @@ export function SharedBillsView() {
                   </select>
                 </div>
                 <div>
-                  <label htmlFor="pay-date" className="block text-xs font-medium text-[#52443E] mb-1">
+                  <label htmlFor="pay-date" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                     Date
                   </label>
                   <input
@@ -786,13 +786,13 @@ export function SharedBillsView() {
                     type="date"
                     value={payDate}
                     onChange={(e) => setPayDate(e.target.value)}
-                    className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 rounded-lg"
+                    className="w-full px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="pay-notes" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="pay-notes" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Notes (Optional)
                 </label>
                 <input
@@ -801,7 +801,7 @@ export function SharedBillsView() {
                   value={payNotes}
                   onChange={(e) => setPayNotes(e.target.value)}
                   placeholder="Reference or receipt note"
-                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                 />
               </div>
             </div>
@@ -810,7 +810,7 @@ export function SharedBillsView() {
               <button
                 type="button"
                 onClick={() => setPaymentTarget(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#85736D]/50 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>
@@ -830,7 +830,7 @@ export function SharedBillsView() {
                   });
                   setPaymentTarget(null);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
               >
                 Save Payment
               </button>
@@ -841,10 +841,10 @@ export function SharedBillsView() {
 
       {/* Delete Shared Bill Confirmation */}
       {deletingBill && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E8D9D3] rounded-xl max-w-md w-full p-6 space-y-4">
-            <h3 className="font-display font-bold text-[#201A17]">Delete Shared Bill?</h3>
-            <p className="text-sm text-[#52443E]">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Delete Shared Bill?</h3>
+            <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
               Delete <strong>{deletingBill.title}</strong> ({formatCurrency(deletingBill.totalAmount)})?
               All associated member payment records for this bill will be removed.
             </p>
@@ -852,7 +852,7 @@ export function SharedBillsView() {
               <button
                 type="button"
                 onClick={() => setDeletingBill(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#85736D]/50 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>

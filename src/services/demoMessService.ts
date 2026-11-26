@@ -24,7 +24,7 @@ import {
 import { roundTwoDecimals } from '../utils/messCalculations';
 import { IMessDataService, MessObservers } from './messServiceTypes';
 
-const DEMO_STORAGE_KEY = 'mess_meal_demo_state_v1';
+const DEMO_STORAGE_KEY = 'mess_meal_demo_state_v2';
 export const DEMO_USER_ID = 'demo_tanvir_uid';
 
 interface DemoMessBundle {
@@ -144,7 +144,51 @@ function createInitialDemoState(): DemoState {
     };
   };
 
+  const [refYear, refMonth] = currentMonth.split('-').map(Number);
+  const shiftMonthKey = (offsetMonths: number): string => {
+    const abs = refYear * 12 + (refMonth - 1) + offsetMonths;
+    const y = Math.floor(abs / 12);
+    const m = ((abs % 12) + 12) % 12 + 1;
+    return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}`;
+  };
+
+  const historicalMeals: DailyMealRecord[] = [];
+  const sampleDays = ['04', '07', '10', '13', '16', '19', '22', '25', '27'];
+  for (let mOff = -5; mOff <= -1; mOff += 1) {
+    const mk = shiftMonthKey(mOff);
+    for (const day of sampleDays) {
+      const dateStr = `${mk}-${day}`;
+      const isFri = checkIsFriday(dateStr);
+      const dayUnitsPerMember = isFri ? 1 : 2;
+      const attendances: DailyMealRecord['attendances'] = {};
+      for (const m of members) {
+        attendances[m.id] = {
+          attendedLunch: true,
+          attendedNight: !isFri,
+          guestLunchAttended: 0,
+          guestNightAttended: 0,
+          calculatedUnits: dayUnitsPerMember,
+        };
+      }
+      historicalMeals.push({
+        id: dateStr,
+        date: dateStr,
+        isFriday: isFri,
+        lunchServiceStatus: 'ACTIVE',
+        nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
+        cancellationReason: '',
+        bookings: {},
+        attendances,
+        totalDayUnits: dayUnitsPerMember * members.length,
+        totalDayMeals: dayUnitsPerMember * members.length,
+        updatedBy: DEMO_USER_ID,
+        updatedAt: Date.now() - Math.abs(mOff) * 30 * 86400000,
+      });
+    }
+  }
+
   const dailyMeals: DailyMealRecord[] = [
+    ...historicalMeals,
     mkRecord(fourDaysAgo, {
       [DEMO_USER_ID]: { ...defaultBookingEntry(), statusLunch: 'BOOKED', statusNight: 'BOOKED' },
       mem_rahim: { ...defaultBookingEntry(), statusLunch: 'BOOKED', statusNight: 'BOOKED', guestLunch: 1 },
@@ -181,6 +225,41 @@ function createInitialDemoState(): DemoState {
       mem_nafis: { ...defaultBookingEntry(), statusLunch: 'CANCELLED', statusNight: 'BOOKED', autoBooked: true },
     }),
   ];
+
+  const historicalBazaarSpecs = [
+    { mOff: -5, a1: 4200, a2: 3000, d1: 'Monthly rice, oil & dry staples', d2: 'Fish, chicken & fresh vegetables' },
+    { mOff: -4, a1: 4900, a2: 3500, d1: 'Wholesale grains, lentils & spices', d2: 'Beef, hilsa & weekly bazaar' },
+    { mOff: -3, a1: 4450, a2: 3500, d1: 'Miniket rice & cooking essentials', d2: 'Poultry, eggs & market produce' },
+    { mOff: -2, a1: 5300, a2: 3900, d1: 'Bulk groceries & pantry restock', d2: 'Rohu fish, mutton & vegetables' },
+    { mOff: -1, a1: 5050, a2: 3800, d1: 'Rice, dal, edible oil & onion sack', d2: 'Meat, fish & leafy greens' },
+  ];
+
+  const historicalBazaars: BazaarExpense[] = historicalBazaarSpecs.flatMap((spec) => {
+    const mk = shiftMonthKey(spec.mOff);
+    const tsBase = Date.now() - Math.abs(spec.mOff) * 30 * 86400000;
+    return [
+      {
+        id: `baz_hist_${mk}_1`,
+        buyerMemberId: DEMO_USER_ID,
+        buyerName: 'Tanvir Hasan',
+        amount: spec.a1,
+        itemsDescription: spec.d1,
+        category: 'Groceries',
+        date: `${mk}-08`,
+        createdAt: tsBase,
+      },
+      {
+        id: `baz_hist_${mk}_2`,
+        buyerMemberId: 'mem_rahim',
+        buyerName: 'Rahim Ahmed',
+        amount: spec.a2,
+        itemsDescription: spec.d2,
+        category: 'Meat & Fish',
+        date: `${mk}-20`,
+        createdAt: tsBase + 86400000 * 12,
+      },
+    ];
+  });
 
   const bazaarExpenses: BazaarExpense[] = [
     {
@@ -223,7 +302,33 @@ function createInitialDemoState(): DemoState {
       date: fourDaysAgo,
       createdAt: Date.now() - 86400000 * 4,
     },
+    ...historicalBazaars,
   ];
+
+  const historicalDepositPerMember: Record<number, number> = {
+    [-5]: 1500,
+    [-4]: 1750,
+    [-3]: 1650,
+    [-2]: 1950,
+    [-1]: 1850,
+  };
+
+  const historicalDeposits: Deposit[] = [-1, -2, -3, -4, -5].flatMap((mOff) => {
+    const mk = shiftMonthKey(mOff);
+    const perHead = historicalDepositPerMember[mOff];
+    const tsBase = Date.now() - Math.abs(mOff) * 30 * 86400000;
+    return members.map((m, idx) => ({
+      id: `dep_hist_${mk}_${m.id}`,
+      memberId: m.id,
+      memberName: m.displayName,
+      amount: perHead,
+      date: `${mk}-0${idx + 2}`,
+      paymentMethod: idx % 2 === 0 ? 'bKash/Nagad' : 'Cash',
+      notes: `Monthly mess deposit (${mk})`,
+      recordedBy: DEMO_USER_ID,
+      createdAt: tsBase + idx * 3600000,
+    }));
+  });
 
   const deposits: Deposit[] = [
     {
@@ -281,6 +386,7 @@ function createInitialDemoState(): DemoState {
       recordedBy: DEMO_USER_ID,
       createdAt: Date.now() - 86400000,
     },
+    ...historicalDeposits,
   ];
 
   const utilityBills: UtilityBill[] = [

@@ -599,3 +599,88 @@ export function generateSettlementReportText(params: {
 
   return lines.join('\n');
 }
+
+const CHART_MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+export interface MonthlyFinanceComparison {
+  monthKey: string;
+  label: string;
+  fullLabel: string;
+  bazaarExpenses: number;
+  memberDeposits: number;
+  netBalance: number;
+}
+
+/**
+ * Aggregates monthly total bazaar expenses vs total member deposits
+ * across the last `monthCount` (default 6) calendar months ending on `referenceDate`.
+ */
+export function computeMonthlyBazaarVsDeposits(params: {
+  bazaarExpenses: BazaarExpense[];
+  deposits: Deposit[];
+  referenceDate: string;
+  monthCount?: number;
+}): MonthlyFinanceComparison[] {
+  const { bazaarExpenses, deposits, referenceDate, monthCount = 6 } = params;
+  const count = Math.max(1, Math.min(24, Math.floor(monthCount)));
+
+  const match = /^(\d{4})-(\d{2})/.exec((referenceDate || '').trim());
+  const now = new Date();
+  const endYear = match ? Number.parseInt(match[1], 10) : now.getUTCFullYear();
+  const endMonth = match ? Number.parseInt(match[2], 10) : now.getUTCMonth() + 1;
+
+  const bazaarByMonth: Record<string, number> = {};
+  for (const exp of bazaarExpenses) {
+    const key = (exp.date || '').trim().slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(key)) {
+      bazaarByMonth[key] = (bazaarByMonth[key] ?? 0) + (Number(exp.amount) || 0);
+    }
+  }
+
+  const depositsByMonth: Record<string, number> = {};
+  for (const dep of deposits) {
+    const key = (dep.date || '').trim().slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(key)) {
+      depositsByMonth[key] = (depositsByMonth[key] ?? 0) + (Number(dep.amount) || 0);
+    }
+  }
+
+  const months: { year: number; month: number; monthKey: string }[] = [];
+  for (let offset = count - 1; offset >= 0; offset -= 1) {
+    const absoluteMonth = endYear * 12 + (endMonth - 1) - offset;
+    const year = Math.floor(absoluteMonth / 12);
+    const month = ((absoluteMonth % 12) + 12) % 12 + 1;
+    const monthKey = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}`;
+    months.push({ year, month, monthKey });
+  }
+
+  const distinctYears = new Set(months.map((m) => m.year));
+  const spansMultipleYears = distinctYears.size > 1;
+
+  return months.map(({ year, month, monthKey }) => {
+    const shortName = CHART_MONTH_NAMES[month - 1] ?? monthKey;
+    const bazaarTotal = roundTwoDecimals(bazaarByMonth[monthKey] ?? 0);
+    const depositTotal = roundTwoDecimals(depositsByMonth[monthKey] ?? 0);
+    return {
+      monthKey,
+      label: spansMultipleYears ? `${shortName} '${String(year).slice(-2)}` : shortName,
+      fullLabel: `${shortName} ${year}`,
+      bazaarExpenses: bazaarTotal,
+      memberDeposits: depositTotal,
+      netBalance: roundTwoDecimals(depositTotal - bazaarTotal),
+    };
+  });
+}

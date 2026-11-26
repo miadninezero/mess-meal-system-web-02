@@ -22,8 +22,17 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400..700;1,9..40,400..700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('mess_meal_theme');
+          var dark = t === 'dark' || (!t && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
-  <body class="bg-[#FCFAF7] text-[#201A17] antialiased selection:bg-[#FFDBCF] selection:text-[#381400]">
+  <body class="bg-[#FCFAF7] text-[#201A17] dark:bg-[#171210] dark:text-[#EDE0DB] antialiased selection:bg-[#FFDBCF] selection:text-[#381400] dark:selection:bg-[#842B00] dark:selection:text-[#FFDBCF]">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-display: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
@@ -21,11 +22,49 @@
   --color-mess-border: #E8D9D3;
 }
 
+:root {
+  --mess-bg: #FCFAF7;
+  --mess-surface: #FFFFFF;
+  --mess-surface-variant: #F4DFD7;
+  --mess-border: #E8D9D3;
+  --mess-text: #201A17;
+  --mess-text-muted: #52443E;
+  --mess-text-subtle: #85736D;
+  --mess-primary: #C05621;
+  --mess-secondary: #0D7351;
+}
+
+.dark {
+  --mess-bg: #171210;
+  --mess-surface: #221B18;
+  --mess-surface-variant: #352A25;
+  --mess-border: #3E322D;
+  --mess-text: #EDE0DB;
+  --mess-text-muted: #D7C3BC;
+  --mess-text-subtle: #A08C86;
+  --mess-primary: #FFB59A;
+  --mess-secondary: #89D6B7;
+}
+
 @layer base {
   body {
     font-family: var(--font-sans);
-    background-color: #FCFAF7;
-    color: #201A17;
+    background-color: var(--mess-bg);
+    color: var(--mess-text);
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+
+  .dark input,
+  .dark select,
+  .dark textarea {
+    background-color: #1A1412;
+    color: #EDE0DB;
+    border-color: #52443E;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #A08C86;
   }
 
   h1, h2, h3, h4, .font-display {

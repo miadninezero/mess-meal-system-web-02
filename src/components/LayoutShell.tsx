@@ -20,6 +20,7 @@ import { NavTab, useMess } from '../context/MessContext';
 import { Member } from '../types/mess';
 import { formatCurrency, formatTimestampDhaka } from '../utils/dhakaTime';
 import { MessLogo } from './MessLogo';
+import { ThemeToggle } from './ThemeToggle';
 
 const NAV_ITEMS: {
   id: NavTab;
@@ -83,35 +84,35 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   const otherMembers = members.filter((m) => m.userId !== authUser?.uid);
 
   return (
-    <div className="min-h-screen bg-[#FCFAF7] text-[#201A17] flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-[#FCFAF7] dark:bg-[#171210] text-[#201A17] dark:text-[#EDE0DB] flex flex-col lg:flex-row">
       {/* Desktop Left Sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-white border-r border-[#E8D9D3] z-20">
-        <div className="h-16 px-5 flex items-center gap-2.5 border-b border-[#E8D9D3] shrink-0">
+      <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-white dark:bg-[#221B18] border-r border-[#E8D9D3] dark:border-[#3E322D] z-20">
+        <div className="h-16 px-5 flex items-center gap-2.5 border-b border-[#E8D9D3] dark:border-[#3E322D] shrink-0">
           <MessLogo className="w-8 h-8 rounded-lg" />
-          <span className="font-display text-lg font-bold tracking-tight text-[#201A17] whitespace-nowrap">
+          <span className="font-display text-lg font-bold tracking-tight text-[#201A17] dark:text-[#EDE0DB] whitespace-nowrap">
             Mess Meal
           </span>
         </div>
 
-        <div className="p-4 border-b border-[#E8D9D3] space-y-2">
-          <div className="text-xs font-medium text-[#85736D]">
+        <div className="p-4 border-b border-[#E8D9D3] dark:border-[#3E322D] space-y-2">
+          <div className="text-xs font-medium text-[#85736D] dark:text-[#A08C86]">
             {isDemoMode ? 'Demo Workspace' : 'Active Mess'}
           </div>
-          <div className="font-display font-semibold text-sm text-[#201A17] truncate">
+          <div className="font-display font-semibold text-sm text-[#201A17] dark:text-[#EDE0DB] truncate">
             {currentMess?.name || 'Loading Mess...'}
           </div>
-          <div className="flex items-center justify-between gap-2 text-xs text-[#52443E] font-mono tabular-nums">
+          <div className="flex items-center justify-between gap-2 text-xs text-[#52443E] dark:text-[#D7C3BC] font-mono tabular-nums">
             <span className="truncate">{currentMess?.id}</span>
             <button
               type="button"
               onClick={handleCopyMessId}
               aria-label="Copy Mess ID"
-              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-sans font-medium text-[#381400] bg-[#F4DFD7]/70 hover:bg-[#FFDBCF] rounded-lg transition-colors shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-sans font-medium text-[#381400] dark:text-[#FFDBCF] bg-[#F4DFD7]/70 hover:bg-[#FFDBCF] dark:bg-[#352A25] dark:hover:bg-[#842B00] rounded-lg transition-colors shrink-0 cursor-pointer"
             >
               {copiedId ? (
-                <Check className="w-3 h-3 text-[#0D7351]" />
+                <Check className="w-3 h-3 text-[#0D7351] dark:text-[#89D6B7]" />
               ) : (
-                <Copy className="w-3 h-3 text-[#C05621]" />
+                <Copy className="w-3 h-3 text-[#C05621] dark:text-[#FFB59A]" />
               )}
               <span>{copiedId ? 'Copied' : 'Copy'}</span>
             </button>
@@ -129,12 +130,16 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                 onClick={() => setActiveNav(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition-colors whitespace-nowrap cursor-pointer ${
                   active
-                    ? 'bg-[#FFDBCF] text-[#381400] font-semibold'
-                    : 'text-[#52443E] hover:bg-[#F4DFD7]/50 hover:text-[#201A17]'
+                    ? 'bg-[#FFDBCF] text-[#381400] dark:bg-[#842B00] dark:text-[#FFDBCF] font-semibold'
+                    : 'text-[#52443E] dark:text-[#D7C3BC] hover:bg-[#F4DFD7]/50 dark:hover:bg-[#352A25] hover:text-[#201A17] dark:hover:text-[#EDE0DB]'
                 }`}
               >
                 <Icon
-                  className={`w-4 h-4 shrink-0 ${active ? 'text-[#C05621]' : 'text-[#85736D]'}`}
+                  className={`w-4 h-4 shrink-0 ${
+                    active
+                      ? 'text-[#C05621] dark:text-[#FFB59A]'
+                      : 'text-[#85736D] dark:text-[#A08C86]'
+                  }`}
                   aria-hidden="true"
                 />
                 <span>{item.label}</span>
@@ -143,12 +148,12 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="p-4 border-t border-[#E8D9D3] space-y-3">
+        <div className="p-4 border-t border-[#E8D9D3] dark:border-[#3E322D] space-y-3">
           <div className="space-y-0.5">
-            <div className="text-sm font-semibold text-[#201A17] truncate">
+            <div className="text-sm font-semibold text-[#201A17] dark:text-[#EDE0DB] truncate">
               {authUser?.displayName}
             </div>
-            <div className="text-xs text-[#52443E]">
+            <div className="text-xs text-[#52443E] dark:text-[#D7C3BC]">
               {isManager ? 'Mess Manager' : 'Mess Member'} · {currentMess?.activeMonth}
             </div>
           </div>
@@ -157,25 +162,25 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => setActiveNav('mess_select')}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] rounded-lg transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] dark:bg-[#352A25] dark:hover:bg-[#52443E] rounded-lg transition-colors cursor-pointer"
             >
-              <ArrowLeftRight className="w-3.5 h-3.5 text-[#C05621]" aria-hidden="true" />
+              <ArrowLeftRight className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
               <span>Switch / Join Mess</span>
             </button>
             {isDemoMode && (
               <button
                 type="button"
                 onClick={resetDemoWorkspace}
-                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] rounded-lg transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-[#F4DFD7]/50 hover:bg-[#F4DFD7] dark:bg-[#352A25] dark:hover:bg-[#52443E] rounded-lg transition-colors cursor-pointer"
               >
-                <RotateCcw className="w-3.5 h-3.5 text-[#C05621]" aria-hidden="true" />
+                <RotateCcw className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
                 <span>Reset Demo Data</span>
               </button>
             )}
             <button
               type="button"
               onClick={signOut}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] hover:bg-[#FFDAD6] hover:text-[#410002] rounded-lg transition-colors cursor-pointer"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] hover:bg-[#FFDAD6] hover:text-[#410002] dark:hover:bg-[#93000A] dark:hover:text-[#FFDAD6] rounded-lg transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Sign Out</span>
@@ -187,24 +192,26 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       {/* Main Content Area */}
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         {/* Top Header Bar (h-12 on mobile <= 15% sticky budget, h-16 on desktop) */}
-        <header className="sticky top-0 z-10 bg-[#FCFAF7]/95 backdrop-blur-sm border-b border-[#E8D9D3] h-12 lg:h-16 px-4 lg:px-8 flex items-center justify-between gap-3">
+        <header className="sticky top-0 z-10 bg-[#FCFAF7]/95 dark:bg-[#171210]/95 backdrop-blur-sm border-b border-[#E8D9D3] dark:border-[#3E322D] h-12 lg:h-16 px-4 lg:px-8 flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <MessLogo className="lg:hidden w-6 h-6 rounded-md" />
-            <h1 className="font-display text-sm lg:text-base font-semibold text-[#201A17] truncate">
+            <h1 className="font-display text-sm lg:text-base font-semibold text-[#201A17] dark:text-[#EDE0DB] truncate">
               {activeNavMeta.label}
             </h1>
-            <span className="hidden sm:inline text-xs text-[#52443E] whitespace-nowrap">
+            <span className="hidden sm:inline text-xs text-[#52443E] dark:text-[#D7C3BC] whitespace-nowrap">
               · {currentMess?.name}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <ThemeToggle />
+
             <button
               type="button"
               onClick={() => setShowRolesModal(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#52443E] bg-white border border-[#E8D9D3] hover:bg-[#F4DFD7]/40 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <Users className="w-3.5 h-3.5 text-[#C05621]" aria-hidden="true" />
+              <Users className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
               <span className="hidden sm:inline">Members &amp; Roles</span>
               <span className="sm:hidden">Members</span>
             </button>
@@ -213,12 +220,12 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={() => setShowNotifications(true)}
               aria-label={`Notifications (${unreadNotificationsCount} unread)`}
-              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#52443E] bg-white border border-[#E8D9D3] hover:bg-[#F4DFD7]/40 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="relative inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <Bell className="w-3.5 h-3.5 text-[#C05621]" aria-hidden="true" />
+              <Bell className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
               <span className="hidden sm:inline">Alerts</span>
               {unreadNotificationsCount > 0 && (
-                <span className="font-mono tabular-nums text-xs font-semibold text-[#BA1A1A]">
+                <span className="font-mono tabular-nums text-xs font-semibold text-[#BA1A1A] dark:text-[#FFB4AB]">
                   ({unreadNotificationsCount})
                 </span>
               )}
@@ -227,7 +234,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => setActiveNav('meals')}
-              className="hidden md:inline-flex items-center px-3.5 py-1.5 text-xs font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="hidden md:inline-flex items-center px-3.5 py-1.5 text-xs font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:text-[#5F1B00] dark:hover:bg-[#ffc7b2] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               Manage Meals
             </button>
@@ -241,8 +248,8 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               role="status"
               className={`flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border text-sm ${
                 uiMessage.tone === 'error'
-                  ? 'bg-[#FFDAD6] border-[#F2B8B5] text-[#410002]'
-                  : 'bg-[#FFDBCF]/80 border-[#F2C3B2] text-[#381400]'
+                  ? 'bg-[#FFDAD6] border-[#F2B8B5] text-[#410002] dark:bg-[#93000A] dark:border-[#FFB4AB]/40 dark:text-[#FFDAD6]'
+                  : 'bg-[#FFDBCF]/80 border-[#F2C3B2] text-[#381400] dark:bg-[#842B00] dark:border-[#FFB59A]/40 dark:text-[#FFDBCF]'
               }`}
             >
               <span>{uiMessage.text}</span>
@@ -250,7 +257,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={clearUiMessage}
                 aria-label="Dismiss notification"
-                className="p-1 rounded hover:bg-black/5 cursor-pointer"
+                className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -267,7 +274,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       {/* Mobile Bottom Navigation (matches Android NavigationBar: Home, Meals, Bazaar, Bills, Deposit, Balance) */}
       <nav
         aria-label="Mobile Bottom Navigation"
-        className="lg:hidden fixed bottom-0 inset-x-0 h-14 bg-[#FCFAF7] border-t border-[#E8D9D3] z-20 grid grid-cols-6"
+        className="lg:hidden fixed bottom-0 inset-x-0 h-14 bg-[#FCFAF7] dark:bg-[#221B18] border-t border-[#E8D9D3] dark:border-[#3E322D] z-20 grid grid-cols-6"
       >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
@@ -278,7 +285,9 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={() => setActiveNav(item.id)}
               className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors cursor-pointer ${
-                active ? 'text-[#C05621] font-semibold' : 'text-[#52443E] hover:text-[#201A17]'
+                active
+                  ? 'text-[#C05621] dark:text-[#FFB59A] font-semibold'
+                  : 'text-[#52443E] dark:text-[#D7C3BC] hover:text-[#201A17] dark:hover:text-[#EDE0DB]'
               }`}
             >
               <Icon className="w-4 h-4" aria-hidden="true" />
@@ -294,22 +303,22 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="notifications-modal-title"
-          className="fixed inset-0 z-50 bg-[#201A17]/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4"
         >
-          <div className="bg-[#FCFAF7] border border-[#E8D9D3] rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col">
-            <div className="px-5 py-4 border-b border-[#E8D9D3] flex items-center justify-between">
+          <div className="bg-[#FCFAF7] dark:bg-[#171210] border border-[#E8D9D3] dark:border-[#3E322D] rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-[#E8D9D3] dark:border-[#3E322D] flex items-center justify-between">
               <div>
-                <h2 id="notifications-modal-title" className="font-display font-bold text-[#201A17]">
+                <h2 id="notifications-modal-title" className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">
                   In-App Notifications
                 </h2>
-                <p className="text-xs text-[#52443E]">{unreadNotificationsCount} unread alert(s)</p>
+                <p className="text-xs text-[#52443E] dark:text-[#D7C3BC]">{unreadNotificationsCount} unread alert(s)</p>
               </div>
               <div className="flex items-center gap-2">
                 {unreadNotificationsCount > 0 && (
                   <button
                     type="button"
                     onClick={markAllNotificationsAsRead}
-                    className="text-xs font-semibold text-[#C05621] hover:text-[#A3471B] cursor-pointer"
+                    className="text-xs font-semibold text-[#C05621] dark:text-[#FFB59A] hover:text-[#A3471B] dark:hover:text-[#FFDBCF] cursor-pointer"
                   >
                     Mark all read
                   </button>
@@ -318,7 +327,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                   type="button"
                   onClick={() => setShowNotifications(false)}
                   aria-label="Close notifications modal"
-                  className="p-1.5 text-[#52443E] hover:text-[#201A17] rounded-lg cursor-pointer"
+                  className="p-1.5 text-[#52443E] dark:text-[#D7C3BC] hover:text-[#201A17] dark:hover:text-[#EDE0DB] rounded-lg cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -327,7 +336,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
             <div className="p-4 overflow-y-auto space-y-2.5">
               {notifications.length === 0 ? (
-                <p className="text-sm text-[#52443E] py-6 text-center">
+                <p className="text-sm text-[#52443E] dark:text-[#D7C3BC] py-6 text-center">
                   No notifications yet. Shared bill alerts will appear here.
                 </p>
               ) : (
@@ -336,24 +345,24 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                     key={n.id}
                     className={`p-3.5 rounded-xl border space-y-1 ${
                       n.isRead
-                        ? 'bg-white border-[#E8D9D3]'
-                        : 'bg-[#FFDBCF]/50 border-[#F2C3B2]'
+                        ? 'bg-white dark:bg-[#221B18] border-[#E8D9D3] dark:border-[#3E322D]'
+                        : 'bg-[#FFDBCF]/50 dark:bg-[#842B00]/35 border-[#F2C3B2] dark:border-[#842B00]'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="text-sm font-semibold text-[#201A17]">{n.title}</div>
+                      <div className="text-sm font-semibold text-[#201A17] dark:text-[#EDE0DB]">{n.title}</div>
                       {!n.isRead && (
                         <button
                           type="button"
                           onClick={() => markNotificationAsRead(n.id)}
-                          className="text-xs font-semibold text-[#C05621] hover:underline shrink-0 cursor-pointer"
+                          className="text-xs font-semibold text-[#C05621] dark:text-[#FFB59A] hover:underline shrink-0 cursor-pointer"
                         >
                           Mark read
                         </button>
                       )}
                     </div>
-                    <p className="text-sm text-[#52443E]">{n.message}</p>
-                    <div className="text-xs text-[#85736D] font-mono tabular-nums">
+                    <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">{n.message}</p>
+                    <div className="text-xs text-[#85736D] dark:text-[#A08C86] font-mono tabular-nums">
                       {formatCurrency(n.amount)} · {formatTimestampDhaka(n.createdAt)}
                     </div>
                   </div>
@@ -370,15 +379,15 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="roles-modal-title"
-          className="fixed inset-0 z-50 bg-[#201A17]/40 flex items-center justify-center p-4"
+          className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4"
         >
-          <div className="bg-[#FCFAF7] border border-[#E8D9D3] rounded-2xl max-w-xl w-full max-h-[85vh] flex flex-col">
-            <div className="px-5 py-4 border-b border-[#E8D9D3] flex items-center justify-between">
+          <div className="bg-[#FCFAF7] dark:bg-[#171210] border border-[#E8D9D3] dark:border-[#3E322D] rounded-2xl max-w-xl w-full max-h-[85vh] flex flex-col">
+            <div className="px-5 py-4 border-b border-[#E8D9D3] dark:border-[#3E322D] flex items-center justify-between">
               <div>
-                <h2 id="roles-modal-title" className="font-display font-bold text-[#201A17]">
+                <h2 id="roles-modal-title" className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">
                   Mess Members &amp; Roles
                 </h2>
-                <p className="text-xs text-[#52443E]">
+                <p className="text-xs text-[#52443E] dark:text-[#D7C3BC]">
                   {members.length} registered member(s) · Mess ID:{' '}
                   <span className="font-mono">{currentMess?.id}</span>
                 </p>
@@ -387,7 +396,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => setShowRolesModal(false)}
                 aria-label="Close members modal"
-                className="p-1.5 text-[#52443E] hover:text-[#201A17] rounded-lg cursor-pointer"
+                className="p-1.5 text-[#52443E] dark:text-[#D7C3BC] hover:text-[#201A17] dark:hover:text-[#EDE0DB] rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -404,16 +413,16 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                 return (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-[#E8D9D3] bg-white"
+                    className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-[#E8D9D3] dark:border-[#3E322D] bg-white dark:bg-[#221B18]"
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-sm font-semibold text-[#201A17]">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-[#201A17] dark:text-[#EDE0DB]">
                         <span className="truncate">{member.displayName}</span>
-                        {isSelf && <span className="text-xs font-normal text-[#85736D]">(You)</span>}
+                        {isSelf && <span className="text-xs font-normal text-[#85736D] dark:text-[#A08C86]">(You)</span>}
                       </div>
-                      <div className="text-xs text-[#52443E]">
+                      <div className="text-xs text-[#52443E] dark:text-[#D7C3BC]">
                         {member.room ? `Room ${member.room} · ` : ''}
-                        <span className={isThisManager ? 'text-[#C05621] font-semibold' : ''}>
+                        <span className={isThisManager ? 'text-[#C05621] dark:text-[#FFB59A] font-semibold' : ''}>
                           {isThisManager ? 'Manager' : 'Member'}
                         </span>
                         {' · '}
@@ -427,7 +436,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                           <button
                             type="button"
                             onClick={() => setConfirmDemote(member)}
-                            className="px-3 py-1.5 text-xs font-medium text-[#BA1A1A] border border-[#F2B8B5] hover:bg-[#FFDAD6] rounded-lg transition-colors cursor-pointer"
+                            className="px-3 py-1.5 text-xs font-medium text-[#BA1A1A] dark:text-[#FFB4AB] border border-[#F2B8B5] dark:border-[#93000A] hover:bg-[#FFDAD6] dark:hover:bg-[#93000A]/40 rounded-lg transition-colors cursor-pointer"
                           >
                             Demote
                           </button>
@@ -435,7 +444,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                           <button
                             type="button"
                             onClick={() => setConfirmPromote(member)}
-                            className="px-3 py-1.5 text-xs font-medium text-[#C05621] border border-[#F2C3B2] hover:bg-[#FFDBCF] rounded-lg transition-colors cursor-pointer"
+                            className="px-3 py-1.5 text-xs font-medium text-[#C05621] dark:text-[#FFB59A] border border-[#F2C3B2] dark:border-[#842B00] hover:bg-[#FFDBCF] dark:hover:bg-[#842B00]/50 rounded-lg transition-colors cursor-pointer"
                           >
                             Make Manager
                           </button>
@@ -447,15 +456,15 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               })}
 
               {isManager && (
-                <div className="pt-3 border-t border-[#E8D9D3] flex items-center justify-between gap-3">
-                  <div className="text-xs text-[#52443E] flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-[#C05621] shrink-0" />
+                <div className="pt-3 border-t border-[#E8D9D3] dark:border-[#3E322D] flex items-center justify-between gap-3">
+                  <div className="text-xs text-[#52443E] dark:text-[#D7C3BC] flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-[#C05621] dark:text-[#FFB59A] shrink-0" />
                     <span>Hand over leadership or step down from Manager role.</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setConfirmResign(true)}
-                    className="px-3.5 py-2 text-xs font-semibold text-[#BA1A1A] bg-[#FFDAD6] hover:bg-[#f7c5bf] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                    className="px-3.5 py-2 text-xs font-semibold text-[#BA1A1A] dark:text-[#FFB4AB] bg-[#FFDAD6] dark:bg-[#93000A]/45 hover:bg-[#f7c5bf] dark:hover:bg-[#93000A]/70 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     Resign as Manager
                   </button>
@@ -469,14 +478,14 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                     setShowRolesModal(false);
                     setActiveNav('mess_select');
                   }}
-                  className="px-3 py-1.5 text-xs font-medium text-[#52443E] border border-[#E8D9D3] bg-white rounded-lg"
+                  className="px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#E8D9D3] dark:border-[#3E322D] bg-white dark:bg-[#221B18] rounded-lg"
                 >
                   Switch / Join Mess
                 </button>
                 <button
                   type="button"
                   onClick={signOut}
-                  className="px-3 py-1.5 text-xs font-medium text-[#BA1A1A] border border-[#F2B8B5] bg-white rounded-lg"
+                  className="px-3 py-1.5 text-xs font-medium text-[#BA1A1A] dark:text-[#FFB4AB] border border-[#F2B8B5] dark:border-[#93000A] bg-white dark:bg-[#221B18] rounded-lg"
                 >
                   Sign Out
                 </button>
@@ -488,10 +497,10 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
       {/* Promote Confirmation */}
       {confirmPromote && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] bg-[#201A17]/50 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E8D9D3] rounded-2xl max-w-md w-full p-6 space-y-4">
-            <h3 className="font-display font-bold text-[#201A17]">Promote to Manager?</h3>
-            <p className="text-sm text-[#52443E]">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] bg-[#201A17]/50 dark:bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Promote to Manager?</h3>
+            <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
               Promote <strong>{confirmPromote.displayName}</strong> to Manager? They will gain full
               permission to configure deadlines, manage deposits, publish shared bills, and override
               locked bookings.
@@ -500,7 +509,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={() => setConfirmPromote(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#E8D9D3] rounded-lg hover:bg-[#F4DFD7]/40 cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>
@@ -511,7 +520,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                   setConfirmPromote(null);
                   await promoteMemberToManager(target);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
               >
                 Promote to Manager
               </button>
@@ -522,10 +531,10 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
       {/* Demote Confirmation */}
       {confirmDemote && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] bg-[#201A17]/50 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E8D9D3] rounded-2xl max-w-md w-full p-6 space-y-4">
-            <h3 className="font-display font-bold text-[#201A17]">Remove Manager Role?</h3>
-            <p className="text-sm text-[#52443E]">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] bg-[#201A17]/50 dark:bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Remove Manager Role?</h3>
+            <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
               Change <strong>{confirmDemote.displayName}</strong> from Manager back to regular
               Member?
             </p>
@@ -533,7 +542,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={() => setConfirmDemote(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#E8D9D3] rounded-lg hover:bg-[#F4DFD7]/40 cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>
@@ -555,23 +564,23 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
 
       {/* Resign Manager Confirmation */}
       {confirmResign && (
-        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] bg-[#201A17]/50 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#E8D9D3] rounded-2xl max-w-md w-full p-6 space-y-4">
-            <h3 className="font-display font-bold text-[#201A17]">Resign as Manager?</h3>
-            <p className="text-sm text-[#52443E]">
+        <div role="dialog" aria-modal="true" className="fixed inset-0 z-[60] bg-[#201A17]/50 dark:bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Resign as Manager?</h3>
+            <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
               Optionally select a successor to transfer leadership, or step down if another manager
               is already assigned.
             </p>
             {otherMembers.length > 0 && (
               <div>
-                <label htmlFor="successor-select" className="block text-xs font-medium text-[#52443E] mb-1">
+                <label htmlFor="successor-select" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Handover Successor (Optional)
                 </label>
                 <select
                   id="successor-select"
                   value={resignSuccessorId}
                   onChange={(e) => setResignSuccessorId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-[#E8D9D3] rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-[#E8D9D3] dark:border-[#52443E] rounded-lg"
                 >
                   <option value="">No specific handover (keep existing managers)</option>
                   {otherMembers.map((m) => (
@@ -589,7 +598,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                   setConfirmResign(false);
                   setResignSuccessorId('');
                 }}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] border border-[#E8D9D3] rounded-lg hover:bg-[#F4DFD7]/40 cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
               >
                 Cancel
               </button>

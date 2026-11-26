@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, Building2, LogOut, UserPlus } from 'lucide-react';
 import { useMess } from '../context/MessContext';
 import { MessLogo } from './MessLogo';
+import { ThemeToggle } from './ThemeToggle';
 
 export function MessSelectView() {
   const {
@@ -45,15 +46,15 @@ export function MessSelectView() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FCFAF7] text-[#201A17] flex flex-col">
-      <header className="bg-[#FCFAF7] border-b border-[#E8D9D3]">
+    <div className="min-h-screen bg-[#FCFAF7] dark:bg-[#171210] text-[#201A17] dark:text-[#EDE0DB] flex flex-col">
+      <header className="bg-[#FCFAF7] dark:bg-[#171210] border-b border-[#E8D9D3] dark:border-[#3E322D]">
         <div className="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {selectedMessId ? (
               <button
                 type="button"
                 onClick={() => setActiveNav('dashboard')}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#52443E] hover:text-[#201A17] cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Back to Dashboard</span>
@@ -61,32 +62,39 @@ export function MessSelectView() {
             ) : (
               <div className="flex items-center gap-2.5">
                 <MessLogo className="w-8 h-8 rounded-lg" />
-                <span className="font-display text-lg font-bold text-[#201A17]">Mess Setup</span>
+                <span className="font-display text-lg font-bold text-[#201A17] dark:text-[#EDE0DB]">
+                  Mess Setup
+                </span>
               </div>
             )}
           </div>
-          <button
-            type="button"
-            onClick={signOut}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#52443E] bg-white border border-[#E8D9D3] rounded-lg hover:bg-[#F4DFD7]/50 transition-colors cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={signOut}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg hover:bg-[#F4DFD7]/50 dark:hover:bg-[#352A25] transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 py-10 space-y-7">
         <div className="text-center space-y-1.5">
-          <h1 className="font-display text-2xl font-bold text-[#201A17]">Welcome to Mess Meal</h1>
-          <p className="text-sm text-[#52443E]">
+          <h1 className="font-display text-2xl font-bold text-[#201A17] dark:text-[#EDE0DB]">
+            Welcome to Mess Meal
+          </h1>
+          <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
             Create a mess as manager or join an existing flatmate mess group.
           </p>
         </div>
 
         {userMesses.length > 0 && (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-[#201A17]">Your Messes</h2>
+            <h2 className="text-sm font-semibold text-[#201A17] dark:text-[#EDE0DB]">Your Messes</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {userMesses.map((mess) => (
                 <button
@@ -95,8 +103,8 @@ export function MessSelectView() {
                   onClick={() => selectMess(mess.id)}
                   className={`text-left p-4 rounded-xl border transition-colors cursor-pointer ${
                     mess.id === selectedMessId
-                      ? 'bg-[#FFDBCF] border-[#C05621] text-[#381400]'
-                      : 'bg-white border-[#E8D9D3] hover:bg-[#F4DFD7]/40'
+                      ? 'bg-[#FFDBCF] dark:bg-[#842B00] border-[#C05621] dark:border-[#FFB59A] text-[#381400] dark:text-[#FFDBCF]'
+                      : 'bg-white dark:bg-[#221B18] border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25]'
                   }`}
                 >
                   <div className="font-display font-semibold">{mess.name}</div>
@@ -109,8 +117,8 @@ export function MessSelectView() {
           </section>
         )}
 
-        <section className="bg-white border border-[#E8D9D3] rounded-2xl p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-1 p-1 bg-[#F4DFD7]/60 rounded-xl">
+        <section className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-2xl p-6 space-y-6">
+          <div className="grid grid-cols-2 gap-1 p-1 bg-[#F4DFD7]/60 dark:bg-[#171210] rounded-xl">
             <button
               type="button"
               onClick={() => {
@@ -119,11 +127,11 @@ export function MessSelectView() {
               }}
               className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                 tab === 'create'
-                  ? 'bg-white text-[#201A17] shadow-sm'
-                  : 'text-[#52443E] hover:text-[#201A17]'
+                  ? 'bg-white dark:bg-[#352A25] text-[#201A17] dark:text-[#EDE0DB] shadow-sm'
+                  : 'text-[#52443E] dark:text-[#D7C3BC] hover:text-[#201A17] dark:hover:text-[#EDE0DB]'
               }`}
             >
-              <Building2 className="w-4 h-4 text-[#C05621]" />
+              <Building2 className="w-4 h-4 text-[#C05621] dark:text-[#FFB59A]" />
               <span>Create New Mess</span>
             </button>
             <button
@@ -134,11 +142,11 @@ export function MessSelectView() {
               }}
               className={`inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                 tab === 'join'
-                  ? 'bg-white text-[#201A17] shadow-sm'
-                  : 'text-[#52443E] hover:text-[#201A17]'
+                  ? 'bg-white dark:bg-[#352A25] text-[#201A17] dark:text-[#EDE0DB] shadow-sm'
+                  : 'text-[#52443E] dark:text-[#D7C3BC] hover:text-[#201A17] dark:hover:text-[#EDE0DB]'
               }`}
             >
-              <UserPlus className="w-4 h-4 text-[#C05621]" />
+              <UserPlus className="w-4 h-4 text-[#C05621] dark:text-[#FFB59A]" />
               <span>Join Existing</span>
             </button>
           </div>
@@ -146,7 +154,7 @@ export function MessSelectView() {
           {formError && (
             <div
               role="alert"
-              className="p-3 rounded-xl bg-[#FFDAD6] border border-[#F2B8B5] text-sm text-[#410002]"
+              className="p-3 rounded-xl bg-[#FFDAD6] border border-[#F2B8B5] text-sm text-[#410002] dark:bg-[#93000A] dark:border-[#FFB4AB]/40 dark:text-[#FFDAD6]"
             >
               {formError}
             </div>
@@ -154,7 +162,9 @@ export function MessSelectView() {
 
           {tab === 'create' ? (
             <form onSubmit={handleCreate} className="space-y-4">
-              <div className="text-base font-semibold text-[#C05621]">New Mess Details</div>
+              <div className="text-base font-semibold text-[#C05621] dark:text-[#FFB59A]">
+                New Mess Details
+              </div>
               <div>
                 <label htmlFor="mess-name" className="block text-sm font-medium text-[#52443E] mb-1">
                   Mess / Flat Name
@@ -172,7 +182,7 @@ export function MessSelectView() {
               <div>
                 <label
                   htmlFor="manager-name"
-                  className="block text-sm font-medium text-[#52443E] mb-1"
+                  className="block text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1"
                 >
                   Your Display Name (Manager)
                 </label>
@@ -196,11 +206,13 @@ export function MessSelectView() {
             </form>
           ) : (
             <form onSubmit={handleJoin} className="space-y-4">
-              <div className="text-base font-semibold text-[#C05621]">Join Member Mess</div>
+              <div className="text-base font-semibold text-[#C05621] dark:text-[#FFB59A]">
+                Join Member Mess
+              </div>
               <div>
                 <label
                   htmlFor="join-mess-id"
-                  className="block text-sm font-medium text-[#52443E] mb-1"
+                  className="block text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1"
                 >
                   Mess ID / Code
                 </label>
@@ -217,7 +229,7 @@ export function MessSelectView() {
               <div>
                 <label
                   htmlFor="join-member-name"
-                  className="block text-sm font-medium text-[#52443E] mb-1"
+                  className="block text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1"
                 >
                   Your Full Name
                 </label>
@@ -234,7 +246,7 @@ export function MessSelectView() {
               <div>
                 <label
                   htmlFor="join-room"
-                  className="block text-sm font-medium text-[#52443E] mb-1"
+                  className="block text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1"
                 >
                   Room / Bed Number (Optional)
                 </label>
