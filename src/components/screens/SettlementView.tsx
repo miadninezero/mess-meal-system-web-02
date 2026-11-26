@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Copy, Download, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Copy, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useMess } from '../../context/MessContext';
 import { UtilityBill } from '../../types/mess';
 import { formatCurrency, formatTimestampDhaka } from '../../utils/dhakaTime';
 import { generateSettlementReportText } from '../../utils/messCalculations';
+import { ExportReportButtons } from '../ExportReportButtons';
 
 export function SettlementView() {
   const {
@@ -41,41 +42,6 @@ export function SettlementView() {
     } catch {
       showUiMessage('Unable to access clipboard.', 'error');
     }
-  };
-
-  const handleDownloadCsv = () => {
-    const headers = [
-      'Member',
-      'Total Units',
-      'Member Units',
-      'Guest Units',
-      'Meal Cost',
-      'Utility Share',
-      'Unpaid Shared Bills',
-      'Total Cost',
-      'Total Deposit',
-      'Net Balance',
-    ];
-    const rows = summary.memberSettlements.map((s) => [
-      `"${s.memberName.replace(/"/g, '""')}"`,
-      s.totalUnits,
-      s.memberUnits,
-      s.guestUnits,
-      s.mealCost,
-      s.utilityCost,
-      s.sharedBillsUnpaid,
-      s.totalCost,
-      s.totalDeposit,
-      s.netBalance,
-    ]);
-    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `mess-settlement-${currentMess?.activeMonth || todayDhakaDate}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
   };
 
   const openAddBill = () => {
@@ -123,7 +89,7 @@ export function SettlementView() {
             </h2>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={handleCopyReport}
@@ -132,14 +98,7 @@ export function SettlementView() {
               <Copy className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Copy Report</span>
             </button>
-            <button
-              type="button"
-              onClick={handleDownloadCsv}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#381400] dark:text-[#FFDBCF] bg-[#FCFAF7]/85 dark:bg-[#221B18] hover:bg-[#FCFAF7] dark:hover:bg-[#352A25] border border-[#E8D9D3] dark:border-[#52443E] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              <Download className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
-              <span>Export CSV</span>
-            </button>
+            <ExportReportButtons variant="banner" />
           </div>
         </div>
 

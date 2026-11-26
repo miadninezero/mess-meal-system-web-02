@@ -104,7 +104,7 @@ export function MessSelectView() {
                   className={`text-left p-4 rounded-xl border transition-colors cursor-pointer ${
                     mess.id === selectedMessId
                       ? 'bg-[#FFDBCF] dark:bg-[#842B00] border-[#C05621] dark:border-[#FFB59A] text-[#381400] dark:text-[#FFDBCF]'
-                      : 'bg-white dark:bg-[#221B18] border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25]'
+                      : 'bg-white dark:bg-[#221B18] border-[#E8D9D3] dark:border-[#3E322D] text-[#201A17] dark:text-[#EDE0DB] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25]'
                   }`}
                 >
                   <div className="font-display font-semibold">{mess.name}</div>
@@ -166,7 +166,10 @@ export function MessSelectView() {
                 New Mess Details
               </div>
               <div>
-                <label htmlFor="mess-name" className="block text-sm font-medium text-[#52443E] mb-1">
+                <label
+                  htmlFor="mess-name"
+                  className="block text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1"
+                >
                   Mess / Flat Name
                 </label>
                 <input
@@ -175,7 +178,7 @@ export function MessSelectView() {
                   value={messName}
                   onChange={(e) => setMessName(e.target.value)}
                   placeholder="e.g. Green View Bachelor Mess"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#85736D]/50 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#C05621]"
+                  className="w-full px-3.5 py-2.5 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-xl bg-white dark:bg-[#1A1412] text-[#201A17] dark:text-[#EDE0DB] placeholder:text-[#85736D] dark:placeholder:text-[#A08C86] focus:outline-none focus:ring-2 focus:ring-[#C05621] dark:focus:ring-[#FFB59A]"
                   required
                 />
               </div>
@@ -192,14 +195,14 @@ export function MessSelectView() {
                   value={managerName}
                   onChange={(e) => setManagerName(e.target.value)}
                   placeholder="e.g. Tanvir Hasan"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#85736D]/50 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#C05621]"
+                  className="w-full px-3.5 py-2.5 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-xl bg-white dark:bg-[#1A1412] text-[#201A17] dark:text-[#EDE0DB] placeholder:text-[#85736D] dark:placeholder:text-[#A08C86] focus:outline-none focus:ring-2 focus:ring-[#C05621] dark:focus:ring-[#FFB59A]"
                   required
                 />
               </div>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3 px-4 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] disabled:opacity-60 rounded-xl transition-colors cursor-pointer"
+                className="w-full py-3 px-4 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:text-[#5F1B00] dark:hover:bg-[#ffc7b2] disabled:opacity-60 rounded-xl transition-colors cursor-pointer"
               >
                 {isSubmitting ? 'Creating Mess...' : 'Create & Start Mess'}
               </button>
@@ -222,7 +225,7 @@ export function MessSelectView() {
                   value={joinMessId}
                   onChange={(e) => setJoinMessId(e.target.value)}
                   placeholder="Paste Mess ID from your Manager"
-                  className="w-full px-3.5 py-2.5 text-sm font-mono border border-[#85736D]/50 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#C05621]"
+                  className="w-full px-3.5 py-2.5 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-xl bg-white dark:bg-[#1A1412] text-[#201A17] dark:text-[#EDE0DB] placeholder:text-[#85736D] dark:placeholder:text-[#A08C86] focus:outline-none focus:ring-2 focus:ring-[#C05621] dark:focus:ring-[#FFB59A]"
                   required
                 />
               </div>
@@ -239,7 +242,7 @@ export function MessSelectView() {
                   value={memberName}
                   onChange={(e) => setMemberName(e.target.value)}
                   placeholder="e.g. Rahim Ahmed"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#85736D]/50 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#C05621]"
+                  className="w-full px-3.5 py-2.5 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-xl bg-white dark:bg-[#1A1412] text-[#201A17] dark:text-[#EDE0DB] placeholder:text-[#85736D] dark:placeholder:text-[#A08C86] focus:outline-none focus:ring-2 focus:ring-[#C05621] dark:focus:ring-[#FFB59A]"
                   required
                 />
               </div>
@@ -256,13 +259,13 @@ export function MessSelectView() {
                   value={roomNumber}
                   onChange={(e) => setRoomNumber(e.target.value)}
                   placeholder="e.g. Room 4B"
-                  className="w-full px-3.5 py-2.5 text-sm border border-[#85736D]/50 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#C05621]"
+                  className="w-full px-3.5 py-2.5 text-sm border border-[#85736D]/50 dark:border-[#52443E] rounded-xl bg-white dark:bg-[#1A1412] text-[#201A17] dark:text-[#EDE0DB] placeholder:text-[#85736D] dark:placeholder:text-[#A08C86] focus:outline-none focus:ring-2 focus:ring-[#C05621] dark:focus:ring-[#FFB59A]"
                 />
               </div>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3 px-4 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] disabled:opacity-60 rounded-xl transition-colors cursor-pointer"
+                className="w-full py-3 px-4 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:text-[#5F1B00] dark:hover:bg-[#ffc7b2] disabled:opacity-60 rounded-xl transition-colors cursor-pointer"
               >
                 {isSubmitting ? 'Joining Mess...' : 'Join Mess'}
               </button>

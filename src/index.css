@@ -23,6 +23,7 @@
 }
 
 :root {
+  color-scheme: light;
   --mess-bg: #FCFAF7;
   --mess-surface: #FFFFFF;
   --mess-surface-variant: #F4DFD7;
@@ -35,6 +36,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --mess-bg: #171210;
   --mess-surface: #221B18;
   --mess-surface-variant: #352A25;

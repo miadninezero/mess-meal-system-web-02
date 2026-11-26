@@ -15,6 +15,7 @@ import {
   isFriday as checkIsFriday,
 } from '../../utils/dhakaTime';
 import { computeKitchenOrderSummary, resolveEffectiveBooking } from '../../utils/messCalculations';
+import { ExportReportButtons } from '../ExportReportButtons';
 import { MemberSummary } from '../MemberSummary';
 import { MonthlyFinanceChart } from '../MonthlyFinanceChart';
 
@@ -554,6 +555,13 @@ export function DashboardView() {
               {formatCurrency(summary.remainingFund)}
             </div>
           </div>
+        </div>
+
+        <div className="pt-3 border-t border-[#E8D9D3] dark:border-[#3E322D] flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-[#52443E] dark:text-[#D7C3BC]">
+            Export {currentMess?.activeMonth || todayDhakaDate.slice(0, 7)} meal summary &amp; expenses for record-keeping
+          </div>
+          <ExportReportButtons />
         </div>
       </section>
     </div>
