@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Copy, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
 import { UtilityBill } from '../../types/mess';
 import { formatCurrency, formatTimestampDhaka } from '../../utils/dhakaTime';
@@ -28,6 +29,7 @@ export function SettlementView() {
   const [billTitle, setBillTitle] = useState('');
   const [billAmount, setBillAmount] = useState('');
   const [billError, setBillError] = useState('');
+  const { run: runBillAction, isPending: isBillActionPending } = useAsyncAction();
 
   const handleCopyReport = async () => {
     const text = generateSettlementReportText({
@@ -60,36 +62,40 @@ export function SettlementView() {
 
   const handleSaveBill = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBillActionPending('saveBill')) return;
     setBillError('');
     const num = Number.parseFloat(billAmount);
     if (!billTitle.trim() || Number.isNaN(num) || num < 0) {
       setBillError('Please enter a valid title and amount.');
       return;
     }
-    if (editingBill) {
-      await updateUtilityBill({ ...editingBill, title: billTitle.trim(), amount: num });
-      setEditingBill(null);
-    } else {
-      await addUtilityBill(billTitle.trim(), num);
-      setShowAddBillModal(false);
-    }
+    const result = await runBillAction('saveBill', async () => {
+      if (editingBill) {
+        await updateUtilityBill({ ...editingBill, title: billTitle.trim(), amount: num });
+        setEditingBill(null);
+      } else {
+        await addUtilityBill(billTitle.trim(), num);
+        setShowAddBillModal(false);
+      }
+    });
+    void result;
   };
 
   return (
     <div className="space-y-6">
       {/* Financial Overview Banner */}
-      <div className="bg-[#FFDBCF] dark:bg-[#842B00] border border-[#F2C3B2] dark:border-[#A3471B] text-[#381400] dark:text-[#FFDBCF] rounded-2xl p-6 space-y-6">
+      <div className="bg-[#FFDBCF] dark:bg-[#842B00] border border-[#F2C3B2] dark:border-[#A3471B] text-[#381400] dark:text-[#FFDBCF] rounded-2xl p-4 sm:p-6 space-y-5 sm:space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <div className="text-xs font-medium text-[#52443E] dark:text-[#FFDBCF]/80">
               Monthly Reconciliation · {currentMess?.name} ({currentMess?.activeMonth})
             </div>
-            <h2 className="mt-1 font-display text-2xl font-bold text-[#381400] dark:text-[#FFDBCF]">
+            <h2 className="mt-1 font-display text-xl sm:text-2xl font-bold text-[#381400] dark:text-[#FFDBCF]">
               Mess Balance &amp; Final Settlement
             </h2>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto max-w-full">
             <button
               type="button"
               onClick={handleCopyReport}
@@ -414,19 +420,26 @@ export function SettlementView() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isBillActionPending('saveBill')}
                 onClick={() => {
                   setShowAddBillModal(false);
                   setEditingBill(null);
                 }}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                disabled={isBillActionPending('saveBill')}
+                aria-busy={isBillActionPending('saveBill')}
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                {editingBill ? 'Save Changes' : 'Add Utility Bill'}
+                {isBillActionPending('saveBill')
+                  ? 'Saving...'
+                  : editingBill
+                    ? 'Save Changes'
+                    : 'Add Utility Bill'}
               </button>
             </div>
           </form>

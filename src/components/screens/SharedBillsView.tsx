@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
 import {
   BillAllocationType,
@@ -66,6 +67,7 @@ export function SharedBillsView() {
   const [payMethod, setPayMethod] = useState<string>('Cash');
   const [payDate, setPayDate] = useState(todayDhakaDate);
   const [payNotes, setPayNotes] = useState('');
+  const { run: runSharedBillAction, isPending: isSharedBillActionPending } = useAsyncAction();
 
   const activeMembers = members.filter((m) => m.isActive);
   const myMemberId = currentMember?.id || authUser?.uid || '';
@@ -87,6 +89,7 @@ export function SharedBillsView() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSharedBillActionPending('createBill')) return;
     setFormError('');
     if (!title.trim()) {
       setFormError('Please enter a bill title.');
@@ -109,13 +112,16 @@ export function SharedBillsView() {
         setFormError('Total custom bill amount must be greater than 0.');
         return;
       }
-      await createSharedBill({
-        title: title.trim(),
-        allocationType,
-        amountInput: sum,
-        deadline,
-        notes,
-        customShares: parsedShares,
+      await runSharedBillAction('createBill', async () => {
+        await createSharedBill({
+          title: title.trim(),
+          allocationType,
+          amountInput: sum,
+          deadline,
+          notes,
+          customShares: parsedShares,
+        });
+        setShowCreateModal(false);
       });
     } else {
       const num = Number.parseFloat(amountInput);
@@ -123,15 +129,17 @@ export function SharedBillsView() {
         setFormError('Please enter a valid positive amount.');
         return;
       }
-      await createSharedBill({
-        title: title.trim(),
-        allocationType,
-        amountInput: num,
-        deadline,
-        notes,
+      await runSharedBillAction('createBill', async () => {
+        await createSharedBill({
+          title: title.trim(),
+          allocationType,
+          amountInput: num,
+          deadline,
+          notes,
+        });
+        setShowCreateModal(false);
       });
     }
-    setShowCreateModal(false);
   };
 
   const openEdit = (bill: SharedBill) => {
@@ -149,6 +157,7 @@ export function SharedBillsView() {
 
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSharedBillActionPending('editBill')) return;
     if (!editingBill || !editTitle.trim()) return;
     let updatedShares: Record<string, number> | undefined;
     if (customizeEditShares) {
@@ -157,16 +166,18 @@ export function SharedBillsView() {
         updatedShares[id] = Math.max(0, Number.parseFloat(editCustomShares[id] || '0') || 0);
       }
     }
-    await updateSharedBill(
-      {
-        ...editingBill,
-        title: editTitle.trim(),
-        deadline: editDeadline,
-        notes: editNotes.trim(),
-      },
-      updatedShares
-    );
-    setEditingBill(null);
+    await runSharedBillAction('editBill', async () => {
+      await updateSharedBill(
+        {
+          ...editingBill,
+          title: editTitle.trim(),
+          deadline: editDeadline,
+          notes: editNotes.trim(),
+        },
+        updatedShares
+      );
+      setEditingBill(null);
+    });
   };
 
   const openPaymentModal = (bill: SharedBill, memberId: string) => {
@@ -443,9 +454,10 @@ export function SharedBillsView() {
               <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Publish Shared Bill</h3>
               <button
                 type="button"
+                disabled={isSharedBillActionPending('createBill')}
                 onClick={() => setShowCreateModal(false)}
                 aria-label="Close create bill modal"
-                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
+                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] disabled:opacity-50 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -578,16 +590,19 @@ export function SharedBillsView() {
             <div className="px-6 py-4 border-t border-[#E8D9D3] dark:border-[#3E322D] flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isSharedBillActionPending('createBill')}
                 onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                disabled={isSharedBillActionPending('createBill')}
+                aria-busy={isSharedBillActionPending('createBill')}
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Publish &amp; Notify Members
+                {isSharedBillActionPending('createBill') ? 'Publishing...' : 'Publish & Notify Members'}
               </button>
             </div>
           </form>
@@ -687,16 +702,19 @@ export function SharedBillsView() {
             <div className="px-6 py-4 border-t border-[#E8D9D3] dark:border-[#3E322D] flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isSharedBillActionPending('editBill')}
                 onClick={() => setEditingBill(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                disabled={isSharedBillActionPending('editBill')}
+                aria-busy={isSharedBillActionPending('editBill')}
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Save Changes
+                {isSharedBillActionPending('editBill') ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </form>
@@ -718,9 +736,10 @@ export function SharedBillsView() {
               </div>
               <button
                 type="button"
+                disabled={isSharedBillActionPending('recordPayment')}
                 onClick={() => setPaymentTarget(null)}
                 aria-label="Close payment modal"
-                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
+                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] disabled:opacity-50 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -809,30 +828,36 @@ export function SharedBillsView() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isSharedBillActionPending('recordPayment')}
                 onClick={() => setPaymentTarget(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isSharedBillActionPending('recordPayment')}
+                aria-busy={isSharedBillActionPending('recordPayment')}
                 onClick={async () => {
+                  const target = paymentTarget;
                   const num = Math.max(0, Number.parseFloat(payAmount) || 0);
-                  await recordBillPayment({
-                    billId: paymentTarget.bill.id,
-                    memberId: paymentTarget.memberId,
-                    memberName: paymentTarget.memberName,
-                    assignedShare: paymentTarget.assignedShare,
-                    amountPaid: num,
-                    paymentMethod: payMethod,
-                    paymentDate: payDate,
-                    notes: payNotes.trim(),
+                  await runSharedBillAction('recordPayment', async () => {
+                    await recordBillPayment({
+                      billId: target.bill.id,
+                      memberId: target.memberId,
+                      memberName: target.memberName,
+                      assignedShare: target.assignedShare,
+                      amountPaid: num,
+                      paymentMethod: payMethod,
+                      paymentDate: payDate,
+                      notes: payNotes.trim(),
+                    });
+                    setPaymentTarget(null);
                   });
-                  setPaymentTarget(null);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Save Payment
+                {isSharedBillActionPending('recordPayment') ? 'Recording...' : 'Save Payment'}
               </button>
             </div>
           </div>
@@ -851,21 +876,24 @@ export function SharedBillsView() {
             <div className="flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isSharedBillActionPending('deleteBill')}
                 onClick={() => setDeletingBill(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isSharedBillActionPending('deleteBill')}
+                aria-busy={isSharedBillActionPending('deleteBill')}
                 onClick={async () => {
                   const target = deletingBill;
+                  await runSharedBillAction('deleteBill', () => deleteSharedBill(target));
                   setDeletingBill(null);
-                  await deleteSharedBill(target);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Delete Bill
+                {isSharedBillActionPending('deleteBill') ? 'Deleting...' : 'Delete Bill'}
               </button>
             </div>
           </div>

@@ -97,7 +97,7 @@ export function ExportReportButtons({ variant = 'default' }: ExportReportButtons
       : 'inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:text-[#5F1B00] dark:hover:bg-[#ffc7b2] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60';
 
   return (
-    <div className="flex flex-wrap items-center gap-2 shrink-0">
+    <div className="flex flex-wrap items-center gap-2 max-w-full">
       <button
         type="button"
         onClick={handleExportCsv}

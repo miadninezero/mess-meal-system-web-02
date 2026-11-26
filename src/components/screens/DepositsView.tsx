@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
 import { Deposit, PAYMENT_METHODS } from '../../types/mess';
 import { formatCurrency, formatReadableDate, shiftDate } from '../../utils/dhakaTime';
@@ -26,6 +27,7 @@ export function DepositsView() {
   const [paymentMethod, setPaymentMethod] = useState<string>('Cash');
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState('');
+  const { run: runDepositAction, isPending: isDepositActionPending } = useAsyncAction();
 
   const openAdd = () => {
     setMemberId(members[0]?.id ?? '');
@@ -49,35 +51,39 @@ export function DepositsView() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDepositActionPending('saveDeposit')) return;
     setFormError('');
     const num = Number.parseFloat(amount);
     if (Number.isNaN(num) || num <= 0) {
       setFormError('Please enter a valid positive deposit amount.');
       return;
     }
-    const memberName = members.find((m) => m.id === memberId)?.displayName || 'Member';
-    if (editingDeposit) {
-      await updateDeposit({
-        ...editingDeposit,
-        memberId,
-        memberName,
-        amount: num,
-        date,
-        paymentMethod,
-        notes: notes.trim(),
-      });
-      setEditingDeposit(null);
-    } else {
-      await addDeposit({
-        memberId,
-        memberName,
-        amount: num,
-        date,
-        paymentMethod,
-        notes: notes.trim(),
-      });
-      setShowAddModal(false);
-    }
+    const resolvedMemberId = memberId || members[0]?.id || '';
+    const memberName = members.find((m) => m.id === resolvedMemberId)?.displayName || 'Member';
+    await runDepositAction('saveDeposit', async () => {
+      if (editingDeposit) {
+        await updateDeposit({
+          ...editingDeposit,
+          memberId: resolvedMemberId,
+          memberName,
+          amount: num,
+          date,
+          paymentMethod,
+          notes: notes.trim(),
+        });
+        setEditingDeposit(null);
+      } else {
+        await addDeposit({
+          memberId: resolvedMemberId,
+          memberName,
+          amount: num,
+          date,
+          paymentMethod,
+          notes: notes.trim(),
+        });
+        setShowAddModal(false);
+      }
+    });
   };
 
   return (
@@ -232,12 +238,13 @@ export function DepositsView() {
               </h3>
               <button
                 type="button"
+                disabled={isDepositActionPending('saveDeposit')}
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingDeposit(null);
                 }}
                 aria-label="Close deposit modal"
-                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
+                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] disabled:opacity-50 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -289,13 +296,13 @@ export function DepositsView() {
                 <label htmlFor="dep-date" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Date
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input
                     id="dep-date"
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="flex-1 px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
+                    className="flex-1 min-w-[140px] px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                     required
                   />
                   <button
@@ -319,7 +326,7 @@ export function DepositsView() {
                 <span className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1.5">
                   Payment Channel
                 </span>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {PAYMENT_METHODS.map((method) => (
                     <button
                       key={method}
@@ -355,19 +362,28 @@ export function DepositsView() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isDepositActionPending('saveDeposit')}
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingDeposit(null);
                 }}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                disabled={isDepositActionPending('saveDeposit')}
+                aria-busy={isDepositActionPending('saveDeposit')}
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                {editingDeposit ? 'Save Changes' : 'Save Deposit'}
+                {isDepositActionPending('saveDeposit')
+                  ? editingDeposit
+                    ? 'Saving...'
+                    : 'Recording...'
+                  : editingDeposit
+                    ? 'Save Changes'
+                    : 'Save Deposit'}
               </button>
             </div>
           </form>
@@ -387,21 +403,24 @@ export function DepositsView() {
             <div className="flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isDepositActionPending('deleteDeposit')}
                 onClick={() => setDeletingDeposit(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isDepositActionPending('deleteDeposit')}
+                aria-busy={isDepositActionPending('deleteDeposit')}
                 onClick={async () => {
                   const target = deletingDeposit;
+                  await runDepositAction('deleteDeposit', () => deleteDeposit(target));
                   setDeletingDeposit(null);
-                  await deleteDeposit(target);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Delete Deposit
+                {isDepositActionPending('deleteDeposit') ? 'Deleting...' : 'Delete Deposit'}
               </button>
             </div>
           </div>

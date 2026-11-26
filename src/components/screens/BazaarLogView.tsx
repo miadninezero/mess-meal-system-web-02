@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
 import { BAZAAR_CATEGORIES, BazaarExpense } from '../../types/mess';
 import { formatCurrency, formatReadableDate, shiftDate } from '../../utils/dhakaTime';
@@ -32,6 +33,7 @@ export function BazaarLogView() {
   const [category, setCategory] = useState<string>('Groceries');
   const [date, setDate] = useState(todayDhakaDate);
   const [formError, setFormError] = useState('');
+  const { run: runBazaarAction, isPending: isBazaarActionPending } = useAsyncAction();
 
   const openAddModal = () => {
     setBuyerMemberId(currentMember?.id || members[0]?.id || authUser?.uid || '');
@@ -55,6 +57,7 @@ export function BazaarLogView() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isBazaarActionPending('saveBazaar')) return;
     setFormError('');
     const numAmount = Number.parseFloat(amount);
     if (Number.isNaN(numAmount) || numAmount <= 0) {
@@ -65,31 +68,34 @@ export function BazaarLogView() {
       setFormError('Please describe the purchased items.');
       return;
     }
-    const buyerObj = members.find((m) => m.id === buyerMemberId);
+    const resolvedBuyerId = buyerMemberId || currentMember?.id || members[0]?.id || authUser?.uid || '';
+    const buyerObj = members.find((m) => m.id === resolvedBuyerId);
     const buyerName = buyerObj?.displayName || authUser?.displayName || 'Member';
 
-    if (editingExpense) {
-      await updateBazaarExpense({
-        ...editingExpense,
-        buyerMemberId,
-        buyerName,
-        amount: numAmount,
-        itemsDescription: itemsDescription.trim(),
-        category,
-        date,
-      });
-      setEditingExpense(null);
-    } else {
-      await addBazaarExpense({
-        buyerMemberId,
-        buyerName,
-        amount: numAmount,
-        itemsDescription: itemsDescription.trim(),
-        category,
-        date,
-      });
-      setShowAddModal(false);
-    }
+    await runBazaarAction('saveBazaar', async () => {
+      if (editingExpense) {
+        await updateBazaarExpense({
+          ...editingExpense,
+          buyerMemberId: resolvedBuyerId,
+          buyerName,
+          amount: numAmount,
+          itemsDescription: itemsDescription.trim(),
+          category,
+          date,
+        });
+        setEditingExpense(null);
+      } else {
+        await addBazaarExpense({
+          buyerMemberId: resolvedBuyerId,
+          buyerName,
+          amount: numAmount,
+          itemsDescription: itemsDescription.trim(),
+          category,
+          date,
+        });
+        setShowAddModal(false);
+      }
+    });
   };
 
   const filteredExpenses =
@@ -251,12 +257,13 @@ export function BazaarLogView() {
               </h3>
               <button
                 type="button"
+                disabled={isBazaarActionPending('saveBazaar')}
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingExpense(null);
                 }}
                 aria-label="Close bazaar modal"
-                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] cursor-pointer"
+                className="p-1 text-[#85736D] dark:text-[#A08C86] hover:text-[#201A17] dark:hover:text-[#EDE0DB] disabled:opacity-50 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -327,13 +334,13 @@ export function BazaarLogView() {
                 <label htmlFor="baz-date" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Purchase Date
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <input
                     id="baz-date"
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="flex-1 px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
+                    className="flex-1 min-w-[140px] px-3 py-2 text-sm font-mono border border-[#85736D]/50 dark:border-[#52443E] rounded-lg"
                     required
                   />
                   <button
@@ -372,19 +379,26 @@ export function BazaarLogView() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isBazaarActionPending('saveBazaar')}
                 onClick={() => {
                   setShowAddModal(false);
                   setEditingExpense(null);
                 }}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                disabled={isBazaarActionPending('saveBazaar')}
+                aria-busy={isBazaarActionPending('saveBazaar')}
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                {editingExpense ? 'Save Changes' : 'Save Expense'}
+                {isBazaarActionPending('saveBazaar')
+                  ? 'Saving...'
+                  : editingExpense
+                    ? 'Save Changes'
+                    : 'Save Expense'}
               </button>
             </div>
           </form>
@@ -404,21 +418,24 @@ export function BazaarLogView() {
             <div className="flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isBazaarActionPending('deleteBazaar')}
                 onClick={() => setDeletingExpense(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isBazaarActionPending('deleteBazaar')}
+                aria-busy={isBazaarActionPending('deleteBazaar')}
                 onClick={async () => {
                   const id = deletingExpense.id;
+                  await runBazaarAction('deleteBazaar', () => deleteBazaarExpense(id));
                   setDeletingExpense(null);
-                  await deleteBazaarExpense(id);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Delete Expense
+                {isBazaarActionPending('deleteBazaar') ? 'Deleting...' : 'Delete Expense'}
               </button>
             </div>
           </div>

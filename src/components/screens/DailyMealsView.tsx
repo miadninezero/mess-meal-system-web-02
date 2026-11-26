@@ -11,6 +11,7 @@ import {
   UtensilsCrossed,
   X,
 } from 'lucide-react';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
 import {
   MealAttendanceEntry,
@@ -62,6 +63,7 @@ export function DailyMealsView() {
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [overrideTarget, setOverrideTarget] = useState<Member | null>(null);
+  const { run: runMealAction, isPending: isMealActionPending } = useAsyncAction();
 
   const currentRecord = dailyMeals.find((r) => r.id === selectedDate || r.date === selectedDate);
   const isFri = currentRecord?.isFriday ?? checkIsFriday(selectedDate);
@@ -588,13 +590,20 @@ export function DailyMealsView() {
             </div>
             <button
               type="button"
-              disabled={isLunchPassed && isNightPassed}
+              disabled={(isLunchPassed && isNightPassed) || isMealActionPending('saveBooking')}
+              aria-busy={isMealActionPending('saveBooking')}
               onClick={() =>
-                saveMyBooking(selectedDate, statusLunch, statusNight, guestLunch, guestNight)
+                runMealAction('saveBooking', () =>
+                  saveMyBooking(selectedDate, statusLunch, statusNight, guestLunch, guestNight)
+                )
               }
               className="px-5 py-2.5 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:bg-[#E8D9D3] dark:disabled:bg-[#352A25] disabled:text-[#52443E] dark:disabled:text-[#A08C86] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              {isLunchPassed && isNightPassed ? 'Bookings Locked' : 'Save My Booking'}
+              {isMealActionPending('saveBooking')
+                ? 'Saving...'
+                : isLunchPassed && isNightPassed
+                  ? 'Bookings Locked'
+                  : 'Save My Booking'}
             </button>
           </div>
         </div>
@@ -640,14 +649,19 @@ export function DailyMealsView() {
               {isManager && kitchenSummary.lunchActive && (
                 <button
                   type="button"
-                  onClick={() => saveFinalOrderSummary(selectedDate, 'LUNCH')}
-                  className="w-full py-2 px-3 text-xs font-semibold text-[#201A17] dark:text-[#EDE0DB] bg-[#F4DFD7]/60 dark:bg-[#352A25] hover:bg-[#F4DFD7] dark:hover:bg-[#463832] rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  disabled={isMealActionPending('lockLunch')}
+                  onClick={() =>
+                    runMealAction('lockLunch', () => saveFinalOrderSummary(selectedDate, 'LUNCH'))
+                  }
+                  className="w-full py-2 px-3 text-xs font-semibold text-[#201A17] dark:text-[#EDE0DB] bg-[#F4DFD7]/60 dark:bg-[#352A25] hover:bg-[#F4DFD7] dark:hover:bg-[#463832] disabled:opacity-60 rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Lock className="w-3.5 h-3.5" />
                   <span>
-                    {kitchenSummary.lunchFinalOrder
-                      ? 'Re-Lock Final Lunch Summary'
-                      : 'Archive / Lock Final Lunch Summary'}
+                    {isMealActionPending('lockLunch')
+                      ? 'Locking...'
+                      : kitchenSummary.lunchFinalOrder
+                        ? 'Re-Lock Final Lunch Summary'
+                        : 'Archive / Lock Final Lunch Summary'}
                   </span>
                 </button>
               )}
@@ -700,14 +714,19 @@ export function DailyMealsView() {
                   {isManager && kitchenSummary.nightActive && (
                     <button
                       type="button"
-                      onClick={() => saveFinalOrderSummary(selectedDate, 'NIGHT')}
-                      className="w-full py-2 px-3 text-xs font-semibold text-[#201A17] dark:text-[#EDE0DB] bg-[#F4DFD7]/60 dark:bg-[#352A25] hover:bg-[#F4DFD7] dark:hover:bg-[#463832] rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                      disabled={isMealActionPending('lockNight')}
+                      onClick={() =>
+                        runMealAction('lockNight', () => saveFinalOrderSummary(selectedDate, 'NIGHT'))
+                      }
+                      className="w-full py-2 px-3 text-xs font-semibold text-[#201A17] dark:text-[#EDE0DB] bg-[#F4DFD7]/60 dark:bg-[#352A25] hover:bg-[#F4DFD7] dark:hover:bg-[#463832] disabled:opacity-60 rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Lock className="w-3.5 h-3.5" />
                       <span>
-                        {kitchenSummary.nightFinalOrder
-                          ? 'Re-Lock Final Night Summary'
-                          : 'Archive / Lock Final Night Summary'}
+                        {isMealActionPending('lockNight')
+                          ? 'Locking...'
+                          : kitchenSummary.nightFinalOrder
+                            ? 'Re-Lock Final Night Summary'
+                            : 'Archive / Lock Final Night Summary'}
                       </span>
                     </button>
                   )}
@@ -906,20 +925,25 @@ export function DailyMealsView() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isMealActionPending('deadlines')}
                 onClick={() => setShowDeadlineModal(false)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isMealActionPending('deadlines')}
+                aria-busy={isMealActionPending('deadlines')}
                 onClick={async () => {
-                  await configureDeadlines(editLunchDeadline, editNightDeadline);
+                  await runMealAction('deadlines', () =>
+                    configureDeadlines(editLunchDeadline, editNightDeadline)
+                  );
                   setShowDeadlineModal(false);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Save Deadlines
+                {isMealActionPending('deadlines') ? 'Saving...' : 'Save Deadlines'}
               </button>
             </div>
           </div>
@@ -991,25 +1015,30 @@ export function DailyMealsView() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isMealActionPending('serviceStatus')}
                 onClick={() => setShowServiceModal(false)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isMealActionPending('serviceStatus')}
+                aria-busy={isMealActionPending('serviceStatus')}
                 onClick={async () => {
-                  await updateMealServiceStatus(
-                    selectedDate,
-                    editLunchService,
-                    isFri ? 'CANCELLED' : editNightService,
-                    editCancelReason
+                  await runMealAction('serviceStatus', () =>
+                    updateMealServiceStatus(
+                      selectedDate,
+                      editLunchService,
+                      isFri ? 'CANCELLED' : editNightService,
+                      editCancelReason
+                    )
                   );
                   setShowServiceModal(false);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Update Service
+                {isMealActionPending('serviceStatus') ? 'Updating...' : 'Update Service'}
               </button>
             </div>
           </div>
@@ -1119,31 +1148,35 @@ export function DailyMealsView() {
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
+                disabled={isMealActionPending('override')}
                 onClick={() => setOverrideTarget(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={!ovrReason.trim()}
+                disabled={!ovrReason.trim() || isMealActionPending('override')}
+                aria-busy={isMealActionPending('override')}
                 onClick={async () => {
                   const target = overrideTarget;
-                  await managerOverrideBooking({
-                    date: selectedDate,
-                    memberId: target.id,
-                    memberName: target.displayName,
-                    statusLunch: ovrLunch,
-                    statusNight: isFri ? 'CANCELLED' : ovrNight,
-                    guestLunch: ovrGuestLunch,
-                    guestNight: isFri ? 0 : ovrGuestNight,
-                    reason: ovrReason,
-                  });
+                  await runMealAction('override', () =>
+                    managerOverrideBooking({
+                      date: selectedDate,
+                      memberId: target.id,
+                      memberName: target.displayName,
+                      statusLunch: ovrLunch,
+                      statusNight: isFri ? 'CANCELLED' : ovrNight,
+                      guestLunch: ovrGuestLunch,
+                      guestNight: isFri ? 0 : ovrGuestNight,
+                      reason: ovrReason,
+                    })
+                  );
                   setOverrideTarget(null);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-50 rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Apply Override
+                {isMealActionPending('override') ? 'Applying...' : 'Apply Override'}
               </button>
             </div>
           </div>
@@ -1183,6 +1216,7 @@ function HistoricalAttendancePanel({
   const [attNight, setAttNight] = useState(false);
   const [attGL, setAttGL] = useState(0);
   const [attGN, setAttGN] = useState(0);
+  const { run: runAttendanceAction, isPending: isAttendancePending } = useAsyncAction();
 
   const openEditor = (m: Member) => {
     const existing = attendances[m.id];
@@ -1322,29 +1356,34 @@ function HistoricalAttendancePanel({
             <div className="flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isAttendancePending('saveAttendance')}
                 onClick={() => setEditingMember(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isAttendancePending('saveAttendance')}
+                aria-busy={isAttendancePending('saveAttendance')}
                 onClick={async () => {
                   const m = editingMember;
-                  await onSaveAttendance({
-                    date,
-                    memberId: m.id,
-                    memberName: m.displayName,
-                    attendedLunch: attLunch,
-                    attendedNight: attNight,
-                    guestLunchAttended: attGL,
-                    guestNightAttended: attGN,
-                  });
+                  await runAttendanceAction('saveAttendance', () =>
+                    onSaveAttendance({
+                      date,
+                      memberId: m.id,
+                      memberName: m.displayName,
+                      attendedLunch: attLunch,
+                      attendedNight: attNight,
+                      guestLunchAttended: attGL,
+                      guestNightAttended: attGN,
+                    })
+                  );
                   setEditingMember(null);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Save Attendance
+                {isAttendancePending('saveAttendance') ? 'Saving...' : 'Save Attendance'}
               </button>
             </div>
           </div>

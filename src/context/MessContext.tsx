@@ -38,6 +38,7 @@ import {
   isDeadlinePassed,
   isFriday as checkIsFriday,
 } from '../utils/dhakaTime';
+import { createSingleFlightLock } from '../utils/asyncActionGuard';
 import {
   calculateAttendanceUnits,
   calculateSummary,
@@ -248,6 +249,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const [walkthroughRunId, setWalkthroughRunId] = useState(0);
 
   const autoSavedFinalRef = useRef<Set<string>>(new Set());
+  const mutationLockRef = useRef(createSingleFlightLock());
 
   const openWalkthrough = useCallback(() => {
     if (typeof window !== 'undefined') {
@@ -570,44 +572,48 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
 
   const createMess = useCallback(
     async (name: string, managerName: string) => {
-      if (isSubmitting || !authUser) return;
-      setIsSubmitting(true);
-      try {
-        const newId = await service.createMess(name, managerName, getCurrentDhakaMonth());
-        setSelectedMessId(newId);
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(`mess_meal_selected_${authUser.uid}`, newId);
+      if (!authUser) return;
+      await mutationLockRef.current.run('createMess', async () => {
+        setIsSubmitting(true);
+        try {
+          const newId = await service.createMess(name, managerName, getCurrentDhakaMonth());
+          setSelectedMessId(newId);
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(`mess_meal_selected_${authUser.uid}`, newId);
+          }
+          setActiveNav('dashboard');
+          showUiMessage(`Mess '${name}' created successfully!`);
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to create mess.', 'error');
+        } finally {
+          setIsSubmitting(false);
         }
-        setActiveNav('dashboard');
-        showUiMessage(`Mess '${name}' created successfully!`);
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to create mess.', 'error');
-      } finally {
-        setIsSubmitting(false);
-      }
+      });
     },
-    [authUser, isSubmitting, service, showUiMessage]
+    [authUser, service, showUiMessage]
   );
 
   const joinMess = useCallback(
     async (messId: string, memberName: string, room: string) => {
-      if (isSubmitting || !authUser) return;
-      setIsSubmitting(true);
-      try {
-        await service.joinMess(messId.trim(), memberName.trim(), room.trim());
-        setSelectedMessId(messId.trim());
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(`mess_meal_selected_${authUser.uid}`, messId.trim());
+      if (!authUser) return;
+      await mutationLockRef.current.run('joinMess', async () => {
+        setIsSubmitting(true);
+        try {
+          await service.joinMess(messId.trim(), memberName.trim(), room.trim());
+          setSelectedMessId(messId.trim());
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(`mess_meal_selected_${authUser.uid}`, messId.trim());
+          }
+          setActiveNav('dashboard');
+          showUiMessage('Joined mess successfully!');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to join mess.', 'error');
+        } finally {
+          setIsSubmitting(false);
         }
-        setActiveNav('dashboard');
-        showUiMessage('Joined mess successfully!');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to join mess.', 'error');
-      } finally {
-        setIsSubmitting(false);
-      }
+      });
     },
-    [authUser, isSubmitting, service, showUiMessage]
+    [authUser, service, showUiMessage]
   );
 
   const configureDeadlines = useCallback(
@@ -1004,12 +1010,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       date: string;
     }) => {
       if (!selectedMessId) return;
-      try {
-        await service.addBazaarExpense(selectedMessId, params);
-        showUiMessage('Bazaar expense logged.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to log bazaar expense.', 'error');
-      }
+      await mutationLockRef.current.run('addBazaarExpense', async () => {
+        try {
+          await service.addBazaarExpense(selectedMessId, params);
+          showUiMessage('Bazaar expense logged.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to log bazaar expense.', 'error');
+        }
+      });
     },
     [selectedMessId, service, showUiMessage]
   );
@@ -1017,12 +1025,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const updateBazaarExpense = useCallback(
     async (expense: BazaarExpense) => {
       if (!selectedMessId) return;
-      try {
-        await service.updateBazaarExpense(selectedMessId, expense);
-        showUiMessage('Bazaar expense updated.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to update bazaar expense.', 'error');
-      }
+      await mutationLockRef.current.run(`updateBazaarExpense:${expense.id}`, async () => {
+        try {
+          await service.updateBazaarExpense(selectedMessId, expense);
+          showUiMessage('Bazaar expense updated.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to update bazaar expense.', 'error');
+        }
+      });
     },
     [selectedMessId, service, showUiMessage]
   );
@@ -1030,12 +1040,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const deleteBazaarExpense = useCallback(
     async (expenseId: string) => {
       if (!selectedMessId) return;
-      try {
-        await service.deleteBazaarExpense(selectedMessId, expenseId);
-        showUiMessage('Bazaar expense deleted.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to delete expense.', 'error');
-      }
+      await mutationLockRef.current.run(`deleteBazaarExpense:${expenseId}`, async () => {
+        try {
+          await service.deleteBazaarExpense(selectedMessId, expenseId);
+          showUiMessage('Bazaar expense deleted.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to delete expense.', 'error');
+        }
+      });
     },
     [selectedMessId, service, showUiMessage]
   );
@@ -1055,15 +1067,17 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can add deposits.', 'error');
         return;
       }
-      try {
-        await service.addDeposit(selectedMessId, {
-          ...params,
-          recordedBy: authUser.uid,
-        });
-        showUiMessage('Deposit recorded.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to add deposit.', 'error');
-      }
+      await mutationLockRef.current.run('addDeposit', async () => {
+        try {
+          await service.addDeposit(selectedMessId, {
+            ...params,
+            recordedBy: authUser.uid,
+          });
+          showUiMessage('Deposit recorded.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to add deposit.', 'error');
+        }
+      });
     },
     [authUser, isManager, selectedMessId, service, showUiMessage]
   );
@@ -1075,12 +1089,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can edit deposits.', 'error');
         return;
       }
-      try {
-        await service.updateDeposit(selectedMessId, deposit);
-        showUiMessage('Deposit updated.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to update deposit.', 'error');
-      }
+      await mutationLockRef.current.run(`updateDeposit:${deposit.id}`, async () => {
+        try {
+          await service.updateDeposit(selectedMessId, deposit);
+          showUiMessage('Deposit updated.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to update deposit.', 'error');
+        }
+      });
     },
     [isManager, selectedMessId, service, showUiMessage]
   );
@@ -1092,12 +1108,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can delete deposits.', 'error');
         return;
       }
-      try {
-        await service.deleteDeposit(selectedMessId, deposit);
-        showUiMessage('Deposit removed.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to delete deposit.', 'error');
-      }
+      await mutationLockRef.current.run(`deleteDeposit:${deposit.id}`, async () => {
+        try {
+          await service.deleteDeposit(selectedMessId, deposit);
+          showUiMessage('Deposit removed.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to delete deposit.', 'error');
+        }
+      });
     },
     [isManager, selectedMessId, service, showUiMessage]
   );
@@ -1110,16 +1128,18 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can add utility bills.', 'error');
         return;
       }
-      try {
-        await service.addUtilityBill(selectedMessId, {
-          title: title.trim(),
-          amount,
-          month: currentMess?.activeMonth || getCurrentDhakaMonth(),
-        });
-        showUiMessage('Utility bill added.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to add utility bill.', 'error');
-      }
+      await mutationLockRef.current.run('addUtilityBill', async () => {
+        try {
+          await service.addUtilityBill(selectedMessId, {
+            title: title.trim(),
+            amount,
+            month: currentMess?.activeMonth || getCurrentDhakaMonth(),
+          });
+          showUiMessage('Utility bill added.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to add utility bill.', 'error');
+        }
+      });
     },
     [currentMess, isManager, selectedMessId, service, showUiMessage]
   );
@@ -1131,12 +1151,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can edit utility bills.', 'error');
         return;
       }
-      try {
-        await service.updateUtilityBill(selectedMessId, bill);
-        showUiMessage('Utility bill updated.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to update utility bill.', 'error');
-      }
+      await mutationLockRef.current.run(`updateUtilityBill:${bill.id}`, async () => {
+        try {
+          await service.updateUtilityBill(selectedMessId, bill);
+          showUiMessage('Utility bill updated.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to update utility bill.', 'error');
+        }
+      });
     },
     [isManager, selectedMessId, service, showUiMessage]
   );
@@ -1148,12 +1170,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can delete utility bills.', 'error');
         return;
       }
-      try {
-        await service.deleteUtilityBill(selectedMessId, bill.id, bill.title, bill.amount);
-        showUiMessage('Utility bill removed.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to delete utility bill.', 'error');
-      }
+      await mutationLockRef.current.run(`deleteUtilityBill:${bill.id}`, async () => {
+        try {
+          await service.deleteUtilityBill(selectedMessId, bill.id, bill.title, bill.amount);
+          showUiMessage('Utility bill removed.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to delete utility bill.', 'error');
+        }
+      });
     },
     [isManager, selectedMessId, service, showUiMessage]
   );
@@ -1185,24 +1209,26 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Cannot create bill: No active members found.', 'error');
         return;
       }
-      try {
-        await service.createSharedBill({
-          messId: selectedMessId,
-          title,
-          allocationType,
-          amountInput,
-          month: currentMess?.activeMonth || getCurrentDhakaMonth(),
-          deadline,
-          notes,
-          activeMembers,
-          customShares,
-        });
-        showUiMessage(
-          `Shared bill '${title}' published. Notifications sent to ${activeMembers.length} members.`
-        );
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to create shared bill.', 'error');
-      }
+      await mutationLockRef.current.run('createSharedBill', async () => {
+        try {
+          await service.createSharedBill({
+            messId: selectedMessId,
+            title,
+            allocationType,
+            amountInput,
+            month: currentMess?.activeMonth || getCurrentDhakaMonth(),
+            deadline,
+            notes,
+            activeMembers,
+            customShares,
+          });
+          showUiMessage(
+            `Shared bill '${title}' published. Notifications sent to ${activeMembers.length} members.`
+          );
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to create shared bill.', 'error');
+        }
+      });
     },
     [currentMess, isManager, members, selectedMessId, service, showUiMessage]
   );
@@ -1214,12 +1240,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can edit shared bills.', 'error');
         return;
       }
-      try {
-        await service.updateSharedBill(selectedMessId, bill, updatedShares);
-        showUiMessage('Shared bill updated.');
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to update bill.', 'error');
-      }
+      await mutationLockRef.current.run(`updateSharedBill:${bill.id}`, async () => {
+        try {
+          await service.updateSharedBill(selectedMessId, bill, updatedShares);
+          showUiMessage('Shared bill updated.');
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to update bill.', 'error');
+        }
+      });
     },
     [isManager, selectedMessId, service, showUiMessage]
   );
@@ -1231,12 +1259,14 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can delete shared bills.', 'error');
         return;
       }
-      try {
-        await service.deleteSharedBill(selectedMessId, bill.id, bill.title, bill.totalAmount);
-        showUiMessage(`Shared bill '${bill.title}' removed.`);
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to delete bill.', 'error');
-      }
+      await mutationLockRef.current.run(`deleteSharedBill:${bill.id}`, async () => {
+        try {
+          await service.deleteSharedBill(selectedMessId, bill.id, bill.title, bill.totalAmount);
+          showUiMessage(`Shared bill '${bill.title}' removed.`);
+        } catch (e) {
+          showUiMessage(e instanceof Error ? e.message : 'Failed to delete bill.', 'error');
+        }
+      });
     },
     [isManager, selectedMessId, service, showUiMessage]
   );
@@ -1257,18 +1287,23 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         showUiMessage('Access Denied: Only Managers can record payments.', 'error');
         return;
       }
-      try {
-        await service.recordBillPayment({ messId: selectedMessId, ...params });
-        const statusText =
-          params.amountPaid >= params.assignedShare && params.assignedShare > 0
-            ? 'Paid in full'
-            : params.amountPaid > 0
-              ? `Partially paid (৳${params.amountPaid})`
-              : 'Marked as unpaid';
-        showUiMessage(`Payment recorded for ${params.memberName}: ${statusText}.`);
-      } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to record payment.', 'error');
-      }
+      await mutationLockRef.current.run(
+        `recordBillPayment:${params.billId}:${params.memberId}`,
+        async () => {
+          try {
+            await service.recordBillPayment({ messId: selectedMessId, ...params });
+            const statusText =
+              params.amountPaid >= params.assignedShare && params.assignedShare > 0
+                ? 'Paid in full'
+                : params.amountPaid > 0
+                  ? `Partially paid (৳${params.amountPaid})`
+                  : 'Marked as unpaid';
+            showUiMessage(`Payment recorded for ${params.memberName}: ${statusText}.`);
+          } catch (e) {
+            showUiMessage(e instanceof Error ? e.message : 'Failed to record payment.', 'error');
+          }
+        }
+      );
     },
     [isManager, selectedMessId, service, showUiMessage]
   );

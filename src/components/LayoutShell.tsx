@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Compass,
 } from 'lucide-react';
+import { useAsyncAction } from '../hooks/useAsyncAction';
 import { NavTab, useMess } from '../context/MessContext';
 import { Member } from '../types/mess';
 import { formatCurrency, formatTimestampDhaka } from '../utils/dhakaTime';
@@ -70,6 +71,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
   const [confirmDemote, setConfirmDemote] = useState<Member | null>(null);
   const [confirmResign, setConfirmResign] = useState(false);
   const [resignSuccessorId, setResignSuccessorId] = useState<string>('');
+  const { run: runRoleAction, isPending: isRoleActionPending } = useAsyncAction();
 
   const activeNavMeta = NAV_ITEMS.find((n) => n.id === activeNav) ?? NAV_ITEMS[0];
 
@@ -206,9 +208,9 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
       {/* Main Content Area */}
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         {/* Top Header Bar (h-12 on mobile <= 15% sticky budget, h-16 on desktop) */}
-        <header className="sticky top-0 z-10 bg-[#FCFAF7]/95 dark:bg-[#171210]/95 backdrop-blur-sm border-b border-[#E8D9D3] dark:border-[#3E322D] h-12 lg:h-16 px-4 lg:px-8 flex items-center justify-between gap-2 sm:gap-3">
+        <header className="sticky top-0 z-10 bg-[#FCFAF7]/95 dark:bg-[#171210]/95 backdrop-blur-sm border-b border-[#E8D9D3] dark:border-[#3E322D] h-12 lg:h-16 px-3 sm:px-4 lg:px-8 flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <MessLogo className="lg:hidden w-6 h-6 rounded-md" />
+            <MessLogo className="lg:hidden w-6 h-6 rounded-md shrink-0" />
             <h1 className="font-display text-sm lg:text-base font-semibold text-[#201A17] dark:text-[#EDE0DB] truncate">
               {activeNavMeta.label}
             </h1>
@@ -217,21 +219,21 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {isDemoMode && (
               <button
                 type="button"
                 onClick={openWalkthrough}
                 aria-label="Open Demo Walkthrough Guide"
                 aria-pressed={isWalkthroughOpen}
-                className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-semibold border rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-semibold border rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   isWalkthroughOpen
                     ? 'bg-[#FFDBCF] border-[#F2C3B2] text-[#381400] dark:bg-[#842B00] dark:border-[#A63D0A] dark:text-[#FFDBCF]'
                     : 'bg-white dark:bg-[#221B18] border-[#E8D9D3] dark:border-[#3E322D] text-[#52443E] dark:text-[#D7C3BC] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25]'
                 }`}
               >
                 <Compass className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
-                <span>Tour</span>
+                <span className="hidden sm:inline">Tour</span>
               </button>
             )}
 
@@ -240,18 +242,19 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => setShowRolesModal(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              aria-label="Members and Roles"
+              className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Users className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
               <span className="hidden sm:inline">Members &amp; Roles</span>
-              <span className="sm:hidden">Members</span>
+              <span className="hidden min-[400px]:inline sm:hidden">Members</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowNotifications(true)}
               aria-label={`Notifications (${unreadNotificationsCount} unread)`}
-              className="relative inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="relative inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Bell className="w-3.5 h-3.5 text-[#C05621] dark:text-[#FFB59A]" aria-hidden="true" />
               <span className="hidden sm:inline">Alerts</span>
@@ -546,14 +549,15 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
               </button>
               <button
                 type="button"
+                disabled={isRoleActionPending('promote')}
                 onClick={async () => {
                   const target = confirmPromote;
+                  await runRoleAction('promote', () => promoteMemberToManager(target));
                   setConfirmPromote(null);
-                  await promoteMemberToManager(target);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Promote to Manager
+                {isRoleActionPending('promote') ? 'Promoting...' : 'Promote to Manager'}
               </button>
             </div>
           </div>
@@ -572,21 +576,23 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             <div className="flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isRoleActionPending('demote')}
                 onClick={() => setConfirmDemote(null)}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isRoleActionPending('demote')}
                 onClick={async () => {
                   const target = confirmDemote;
+                  await runRoleAction('demote', () => demoteManagerToMember(target));
                   setConfirmDemote(null);
-                  await demoteManagerToMember(target);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#BA1A1A] hover:bg-[#93000A] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#BA1A1A] hover:bg-[#93000A] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Remove Manager
+                {isRoleActionPending('demote') ? 'Updating...' : 'Remove Manager'}
               </button>
             </div>
           </div>
@@ -625,25 +631,27 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             <div className="flex justify-end gap-2">
               <button
                 type="button"
+                disabled={isRoleActionPending('resign')}
                 onClick={() => {
                   setConfirmResign(false);
                   setResignSuccessorId('');
                 }}
-                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] cursor-pointer"
+                className="px-4 py-2 text-sm font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#E8D9D3] dark:border-[#3E322D] rounded-lg hover:bg-[#F4DFD7]/40 dark:hover:bg-[#352A25] disabled:opacity-60 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
+                disabled={isRoleActionPending('resign')}
                 onClick={async () => {
                   const successor = members.find((m) => m.id === resignSuccessorId) || null;
+                  await runRoleAction('resign', () => resignAsManager(successor));
                   setConfirmResign(false);
                   setResignSuccessorId('');
-                  await resignAsManager(successor);
                 }}
-                className="px-4 py-2 text-sm font-semibold text-white bg-[#BA1A1A] hover:bg-[#93000A] rounded-lg cursor-pointer"
+                className="px-4 py-2 text-sm font-semibold text-white bg-[#BA1A1A] hover:bg-[#93000A] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                Confirm Resignation
+                {isRoleActionPending('resign') ? 'Submitting...' : 'Confirm Resignation'}
               </button>
             </div>
           </div>
