@@ -273,19 +273,24 @@ export function defaultBookingEntry(): MealBookingEntry {
   };
 }
 
+function roundMoney(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round((value + (value >= 0 ? 1e-9 : -1e-9)) * 100) / 100;
+}
+
 export function getMemberShare(bill: SharedBill, memberId: string): number {
   if (bill.assignedMemberIds.length > 0 && !bill.assignedMemberIds.includes(memberId)) {
     return 0;
   }
-  return bill.memberShares[memberId] ?? bill.perMemberAmount;
+  return roundMoney(bill.memberShares[memberId] ?? bill.perMemberAmount);
 }
 
 export function getMemberPaid(bill: SharedBill, memberId: string): number {
-  return bill.payments[memberId]?.amountPaid ?? 0;
+  return roundMoney(bill.payments[memberId]?.amountPaid ?? 0);
 }
 
 export function getMemberDue(bill: SharedBill, memberId: string): number {
-  return Math.max(0, getMemberShare(bill, memberId) - getMemberPaid(bill, memberId));
+  return roundMoney(Math.max(0, getMemberShare(bill, memberId) - getMemberPaid(bill, memberId)));
 }
 
 export function getMemberPaymentStatus(
@@ -301,11 +306,13 @@ export function getMemberPaymentStatus(
 }
 
 export function getSharedBillStats(bill: SharedBill) {
-  const totalCollected = Object.values(bill.payments).reduce(
-    (sum, record) => sum + (record.amountPaid || 0),
-    0
+  const totalCollected = roundMoney(
+    Object.values(bill.payments).reduce(
+      (sum, record) => sum + (record.amountPaid || 0),
+      0
+    )
   );
-  const outstandingBalance = Math.max(0, bill.totalAmount - totalCollected);
+  const outstandingBalance = roundMoney(Math.max(0, roundMoney(bill.totalAmount) - totalCollected));
   let paidMembersCount = 0;
   let partiallyPaidMembersCount = 0;
   let unpaidMembersCount = 0;

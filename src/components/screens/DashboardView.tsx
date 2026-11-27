@@ -80,6 +80,8 @@ export function DashboardView() {
         explicitBooking: todayRecord?.bookings?.[myMemberId],
         date: todayDhakaDate,
         isFriday,
+        lunchDeadline: currentMess?.lunchBookingDeadline || '09:00',
+        nightDeadline: currentMess?.nightBookingDeadline || '17:00',
       })
     : todayRecord?.bookings?.[myMemberId] ?? defaultBookingEntry();
 

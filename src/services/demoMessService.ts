@@ -21,7 +21,11 @@ import {
   isFriday as checkIsFriday,
   shiftDate,
 } from '../utils/dhakaTime';
-import { roundTwoDecimals } from '../utils/messCalculations';
+import {
+  allocateEqualShares,
+  planInactiveMemberBookingCancellations,
+  roundTwoDecimals,
+} from '../utils/messCalculations';
 import { assertAndNextVersion, normalizeVersion } from '../utils/optimisticConcurrency';
 import { IMessDataService, MessObservers } from './messServiceTypes';
 
@@ -937,16 +941,69 @@ class DemoMessServiceImpl implements IMessDataService {
     this.persist();
   }
 
-  async updateMemberStatus(messId: string, memberId: string, isActive: boolean) {
+  async updateMemberStatus(
+    messId: string,
+    memberId: string,
+    isActive: boolean,
+    options?: {
+      todayDate?: string;
+      lunchDeadline?: string;
+      nightDeadline?: string;
+      now?: Date;
+    }
+  ) {
     const bundle = this.getBundle(messId);
-    bundle.members = bundle.members.map((m) => (m.id === memberId ? { ...m, isActive } : m));
+    const todayDate = options?.todayDate || getTodayDhakaDate(options?.now);
+    const lunchDeadline = options?.lunchDeadline || bundle.mess.lunchBookingDeadline || '09:00';
+    const nightDeadline = options?.nightDeadline || bundle.mess.nightBookingDeadline || '17:00';
+    const now = options?.now;
+
+    let cancelledDatesCount = 0;
+    bundle.members = bundle.members.map((m) => {
+      if (m.id !== memberId) return m;
+      if (!isActive) {
+        return {
+          ...m,
+          isActive: false,
+          autoBookEnabled: false,
+          autoBookUpdatedAt: '',
+        };
+      }
+      return { ...m, isActive: true };
+    });
+
+    if (!isActive) {
+      for (const rec of bundle.dailyMeals) {
+        const plan = planInactiveMemberBookingCancellations({
+          record: rec,
+          memberId,
+          todayDate,
+          lunchDeadline,
+          nightDeadline,
+          actorUid: DEMO_USER_ID,
+          now,
+        });
+        if (!plan.changed) continue;
+        rec.bookings = {
+          ...rec.bookings,
+          [memberId]: plan.updatedBooking,
+        };
+        rec.version = normalizeVersion(rec.version) + 1;
+        rec.updatedBy = DEMO_USER_ID;
+        rec.updatedAt = Date.now();
+        cancelledDatesCount += 1;
+      }
+    }
+
     this.addAudit(bundle, {
       action: 'MEMBER_STATUS_UPDATED',
       performedByUid: DEMO_USER_ID,
       performedByName: this.state.profile.displayName,
       targetMemberId: memberId,
       targetMemberName: bundle.members.find((m) => m.id === memberId)?.displayName || '',
-      details: `Set member active status to ${isActive ? 'Active' : 'Inactive'}`,
+      details: isActive
+        ? 'Set member active status to Active'
+        : `Set member active status to Inactive; disabled auto-booking and cancelled unlocked future bookings on ${cancelledDatesCount} date(s)`,
       reason: '',
     });
     this.persist();
@@ -1034,6 +1091,12 @@ class DemoMessServiceImpl implements IMessDataService {
     expectedVersion: number | null;
   }) {
     const bundle = this.getBundle(messId);
+    const targetMember = bundle.members.find((m) => m.id === memberId);
+    if (!isManager && targetMember && !targetMember.isActive) {
+      throw new Error(
+        'Your account is currently inactive. Meal bookings are disabled until a Manager reactivates your account.'
+      );
+    }
     const isFri = checkIsFriday(date);
     const lunchPassed = isDeadlinePassed(date, lunchDeadline);
     const nightPassed = isFri ? true : isDeadlinePassed(date, nightDeadline);
@@ -1427,17 +1490,16 @@ class DemoMessServiceImpl implements IMessDataService {
     let perMemberAmount = 0;
 
     if (allocationType === BillAllocationType.FIXED_PER_MEMBER) {
-      perMemberAmount = roundTwoDecimals(amountInput);
+      perMemberAmount = roundTwoDecimals(Math.max(0, amountInput));
       totalAmount = roundTwoDecimals(perMemberAmount * memberCount);
       activeMembers.forEach((m) => {
         memberShares[m.id] = perMemberAmount;
       });
     } else if (allocationType === BillAllocationType.DIVIDED_EQUALLY) {
-      totalAmount = roundTwoDecimals(amountInput);
-      perMemberAmount = memberCount > 0 ? roundTwoDecimals(totalAmount / memberCount) : 0;
-      activeMembers.forEach((m) => {
-        memberShares[m.id] = perMemberAmount;
-      });
+      const equalSplit = allocateEqualShares(amountInput, assignedMemberIds);
+      totalAmount = equalSplit.totalAmount;
+      perMemberAmount = equalSplit.perMemberAmount;
+      Object.assign(memberShares, equalSplit.memberShares);
     } else {
       activeMembers.forEach((m) => {
         memberShares[m.id] = roundTwoDecimals(Math.max(0, customShares[m.id] ?? 0));
@@ -1468,13 +1530,14 @@ class DemoMessServiceImpl implements IMessDataService {
 
     activeMembers.forEach((m) => {
       const share = memberShares[m.id] ?? perMemberAmount;
+      const shareText = share.toFixed(share % 1 === 0 ? 0 : 2);
       bundle.notifications.unshift({
         id: `notif_${Date.now()}_${m.id}`,
         messId,
         targetMemberId: m.id,
         targetMemberName: m.displayName,
         title: `New Bill: ${title.trim()}`,
-        message: `Your share is ৳${share.toFixed(0)}. Deadline: ${deadline}.`,
+        message: `Your share is ৳${shareText}. Deadline: ${deadline}.`,
         billId,
         amount: share,
         deadline,
@@ -1510,24 +1573,30 @@ class DemoMessServiceImpl implements IMessDataService {
       recordLabel: `shared bill (${bill.title})`,
     });
 
-    const finalShares = updatedShares ?? bill.memberShares;
+    const finalShares: Record<string, number> = {};
+    const sourceShares = updatedShares ?? bill.memberShares;
+    for (const [id, val] of Object.entries(sourceShares)) {
+      finalShares[id] = roundTwoDecimals(Math.max(0, val));
+    }
     const finalTotal = updatedShares
       ? roundTwoDecimals(Object.values(finalShares).reduce((s, v) => s + v, 0))
-      : bill.totalAmount;
+      : roundTwoDecimals(bill.totalAmount);
     const finalPerMem =
       bill.assignedMemberIds.length > 0
         ? roundTwoDecimals(finalTotal / bill.assignedMemberIds.length)
-        : bill.perMemberAmount;
+        : roundTwoDecimals(bill.perMemberAmount);
 
     const updatedPayments = { ...bill.payments };
     for (const [memId, rec] of Object.entries(updatedPayments)) {
-      const share = finalShares[memId] ?? finalPerMem;
+      const share = roundTwoDecimals(finalShares[memId] ?? finalPerMem);
+      const paid = roundTwoDecimals(Math.max(0, rec.amountPaid || 0));
       updatedPayments[memId] = {
         ...rec,
+        amountPaid: paid,
         status:
-          rec.amountPaid >= share && share > 0
+          paid >= share && share > 0
             ? BillPaymentStatus.PAID
-            : rec.amountPaid > 0
+            : paid > 0
               ? BillPaymentStatus.PARTIALLY_PAID
               : BillPaymentStatus.UNPAID,
       };
@@ -1609,17 +1678,19 @@ class DemoMessServiceImpl implements IMessDataService {
       recordLabel: 'shared bill',
     });
 
-    const liveShare =
+    const cleanAmountPaid = roundTwoDecimals(Math.max(0, amountPaid));
+    const liveShare = roundTwoDecimals(
       existing && typeof existing.memberShares?.[memberId] === 'number'
         ? existing.memberShares[memberId]
         : existing && typeof existing.perMemberAmount === 'number'
           ? existing.perMemberAmount
-          : assignedShare;
+          : assignedShare
+    );
 
     const status =
-      amountPaid >= liveShare && liveShare > 0
+      cleanAmountPaid >= liveShare && liveShare > 0
         ? BillPaymentStatus.PAID
-        : amountPaid > 0
+        : cleanAmountPaid > 0
           ? BillPaymentStatus.PARTIALLY_PAID
           : BillPaymentStatus.UNPAID;
 
@@ -1632,7 +1703,7 @@ class DemoMessServiceImpl implements IMessDataService {
               [memberId]: {
                 memberId,
                 memberName,
-                amountPaid,
+                amountPaid: cleanAmountPaid,
                 status,
                 paymentDate,
                 paymentMethod,
@@ -1653,7 +1724,7 @@ class DemoMessServiceImpl implements IMessDataService {
       performedByName: this.state.profile.displayName,
       targetMemberId: memberId,
       targetMemberName: memberName,
-      details: `Recorded payment of ৳${amountPaid} for ${memberName} (Status: ${status}, Method: ${paymentMethod})`,
+      details: `Recorded payment of ৳${cleanAmountPaid} for ${memberName} (Status: ${status}, Method: ${paymentMethod})`,
       reason: '',
     });
     this.persist();

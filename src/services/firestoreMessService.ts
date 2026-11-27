@@ -40,8 +40,16 @@ import {
   UserProfile,
   UtilityBill,
 } from '../types/mess';
-import { isDeadlinePassed, isFriday as checkIsFriday } from '../utils/dhakaTime';
-import { roundTwoDecimals } from '../utils/messCalculations';
+import {
+  getTodayDhakaDate,
+  isDeadlinePassed,
+  isFriday as checkIsFriday,
+} from '../utils/dhakaTime';
+import {
+  allocateEqualShares,
+  planInactiveMemberBookingCancellations,
+  roundTwoDecimals,
+} from '../utils/messCalculations';
 import {
   assertAndNextVersion,
   isConcurrencyConflictError,
@@ -871,17 +879,88 @@ export const firestoreMessService: IMessDataService = {
     }
   },
 
-  async updateMemberStatus(messId, memberId, isActive) {
+  async updateMemberStatus(messId, memberId, isActive, options) {
     const user = requireUser();
     const ref = doc(db, 'messes', messId, 'members', memberId);
+    const todayDate = options?.todayDate || getTodayDhakaDate(options?.now);
+    const lunchDeadline = options?.lunchDeadline || '09:00';
+    const nightDeadline = options?.nightDeadline || '17:00';
+    const now = options?.now;
+
     try {
-      await updateDoc(ref, { isActive });
+      let cancelledDatesCount = 0;
+      if (!isActive) {
+        await updateDoc(ref, {
+          isActive: false,
+          autoBookEnabled: false,
+          autoBookUpdatedAt: '',
+        });
+
+        const mealsSnap = await getDocsFromServer(
+          query(collection(db, 'messes', messId, 'daily_meals'), where('date', '>=', todayDate))
+        );
+        for (const mealDoc of mealsSnap.docs) {
+          const mealRef = doc(db, 'messes', messId, 'daily_meals', mealDoc.id);
+          const didCancel = await runTransaction(db, async (tx) => {
+            const snap = await tx.get(mealRef);
+            if (!snap.exists()) return false;
+            const d = snap.data();
+            const record: DailyMealRecord = {
+              id: snap.id,
+              date: d.date ?? snap.id,
+              isFriday: Boolean(d.isFriday),
+              lunchServiceStatus: d.lunchServiceStatus === 'CANCELLED' ? 'CANCELLED' : 'ACTIVE',
+              nightServiceStatus: d.nightServiceStatus === 'CANCELLED' ? 'CANCELLED' : 'ACTIVE',
+              cancellationReason: d.cancellationReason ?? '',
+              bookings: d.bookings ?? {},
+              attendances: d.attendances ?? {},
+              lunchFinalOrder: d.lunchFinalOrder ?? null,
+              nightFinalOrder: d.nightFinalOrder ?? null,
+              totalDayUnits: Number(d.totalDayUnits ?? 0),
+              totalDayMeals: Number(d.totalDayMeals ?? 0),
+              version: normalizeVersion(d.version),
+              updatedBy: d.updatedBy ?? '',
+            };
+            const plan = planInactiveMemberBookingCancellations({
+              record,
+              memberId,
+              todayDate,
+              lunchDeadline,
+              nightDeadline,
+              actorUid: user.uid,
+              now,
+            });
+            if (!plan.changed) return false;
+            const nextVersion = assertAndNextVersion({
+              exists: true,
+              currentVersion: d.version,
+              expectedVersion: normalizeVersion(d.version),
+              recordLabel: `daily meal record (${record.date})`,
+            });
+            tx.update(mealRef, {
+              [`bookings.${memberId}`]: plan.updatedBooking,
+              version: nextVersion,
+              updatedBy: user.uid,
+              updatedAt: serverTimestamp(),
+            });
+            return true;
+          });
+          if (didCancel) {
+            cancelledDatesCount += 1;
+          }
+        }
+      } else {
+        await updateDoc(ref, { isActive: true });
+      }
+
       await recordAuditLog(messId, {
         action: 'MEMBER_STATUS_UPDATED',
         performedByUid: user.uid,
         performedByName: user.displayName || 'Manager',
         targetMemberId: memberId,
-        details: `Set member active status to ${isActive ? 'Active' : 'Inactive'}`,
+        details: isActive
+          ? 'Set member active status to Active'
+          : `Set member active status to Inactive; disabled auto-booking and cancelled unlocked future bookings on ${cancelledDatesCount} date(s)`,
       });
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
@@ -985,8 +1064,18 @@ export const firestoreMessService: IMessDataService = {
       autoBooked: Boolean(effectiveBooking.autoBooked),
     };
 
+    const memberRef = doc(db, 'messes', messId, 'members', memberId);
+
     try {
       await runTransaction(db, async (tx) => {
+        if (!isManager) {
+          const memberSnap = await tx.get(memberRef);
+          if (memberSnap.exists() && memberSnap.data()?.isActive === false) {
+            throw new Error(
+              'Your account is currently inactive. Meal bookings are disabled until a Manager reactivates your account.'
+            );
+          }
+        }
         const snap = await tx.get(ref);
         const nextVersion = assertAndNextVersion({
           exists: snap.exists(),
@@ -1504,13 +1593,14 @@ export const firestoreMessService: IMessDataService = {
     let perMemberAmount = 0;
 
     if (allocationType === BillAllocationType.FIXED_PER_MEMBER) {
-      perMemberAmount = roundTwoDecimals(amountInput);
+      perMemberAmount = roundTwoDecimals(Math.max(0, amountInput));
       totalAmount = roundTwoDecimals(perMemberAmount * memberCount);
       for (const m of activeMembers) memberShares[m.id] = perMemberAmount;
     } else if (allocationType === BillAllocationType.DIVIDED_EQUALLY) {
-      totalAmount = roundTwoDecimals(amountInput);
-      perMemberAmount = memberCount > 0 ? roundTwoDecimals(totalAmount / memberCount) : 0;
-      for (const m of activeMembers) memberShares[m.id] = perMemberAmount;
+      const equalSplit = allocateEqualShares(amountInput, assignedMemberIds);
+      totalAmount = equalSplit.totalAmount;
+      perMemberAmount = equalSplit.perMemberAmount;
+      Object.assign(memberShares, equalSplit.memberShares);
     } else {
       for (const m of activeMembers) {
         memberShares[m.id] = roundTwoDecimals(Math.max(0, customShares[m.id] ?? 0));
@@ -1546,13 +1636,14 @@ export const firestoreMessService: IMessDataService = {
 
       for (const m of activeMembers) {
         const share = memberShares[m.id] ?? perMemberAmount;
+        const shareText = share.toFixed(share % 1 === 0 ? 0 : 2);
         const notifRef = doc(collection(db, 'messes', messId, 'notifications'));
         batch.set(notifRef, {
           messId,
           targetMemberId: m.id,
           targetMemberName: (m.displayName || 'Member').slice(0, 120),
           title: `New Bill: ${title.trim()}`.slice(0, 160),
-          message: `Your share is ৳${share.toFixed(0)}. Deadline: ${deadline}.`.slice(0, 500),
+          message: `Your share is ৳${shareText}. Deadline: ${deadline}.`.slice(0, 500),
           billId,
           amount: share,
           deadline: deadline.slice(0, 16),
@@ -1577,14 +1668,18 @@ export const firestoreMessService: IMessDataService = {
   async updateSharedBill(messId, bill, updatedShares) {
     const user = requireUser();
     const ref = doc(db, 'messes', messId, 'shared_bills', bill.id);
-    const finalShares = updatedShares ?? bill.memberShares;
+    const finalShares: Record<string, number> = {};
+    const sourceShares = updatedShares ?? bill.memberShares;
+    for (const [id, val] of Object.entries(sourceShares)) {
+      finalShares[id] = roundTwoDecimals(Math.max(0, val));
+    }
     const finalTotal = updatedShares
       ? roundTwoDecimals(Object.values(finalShares).reduce((s, v) => s + v, 0))
-      : bill.totalAmount;
+      : roundTwoDecimals(bill.totalAmount);
     const finalPerMem =
       bill.assignedMemberIds.length > 0
         ? roundTwoDecimals(finalTotal / bill.assignedMemberIds.length)
-        : bill.perMemberAmount;
+        : roundTwoDecimals(bill.perMemberAmount);
 
     try {
       await runTransaction(db, async (tx) => {
@@ -1598,15 +1693,17 @@ export const firestoreMessService: IMessDataService = {
 
         const updatedPayments: Record<string, unknown> = {};
         for (const [memId, rec] of Object.entries(bill.payments)) {
-          const share = finalShares[memId] ?? finalPerMem;
+          const share = roundTwoDecimals(finalShares[memId] ?? finalPerMem);
+          const paid = roundTwoDecimals(Math.max(0, rec.amountPaid || 0));
           const status =
-            rec.amountPaid >= share && share > 0
+            paid >= share && share > 0
               ? BillPaymentStatus.PAID
-              : rec.amountPaid > 0
+              : paid > 0
                 ? BillPaymentStatus.PARTIALLY_PAID
                 : BillPaymentStatus.UNPAID;
           updatedPayments[memId] = {
             ...rec,
+            amountPaid: paid,
             status,
           };
         }
@@ -1679,6 +1776,7 @@ export const firestoreMessService: IMessDataService = {
   }) {
     const user = requireUser();
     const ref = doc(db, 'messes', messId, 'shared_bills', billId);
+    const cleanAmountPaid = roundTwoDecimals(Math.max(0, amountPaid));
 
     try {
       let computedStatus: string = BillPaymentStatus.UNPAID;
@@ -1692,17 +1790,18 @@ export const firestoreMessService: IMessDataService = {
         });
 
         const data = snap.data() || {};
-        const liveShare =
+        const liveShare = roundTwoDecimals(
           typeof data.memberShares?.[memberId] === 'number'
             ? data.memberShares[memberId]
             : typeof data.perMemberAmount === 'number'
               ? data.perMemberAmount
-              : assignedShare;
+              : assignedShare
+        );
 
         computedStatus =
-          amountPaid >= liveShare && liveShare > 0
+          cleanAmountPaid >= liveShare && liveShare > 0
             ? BillPaymentStatus.PAID
-            : amountPaid > 0
+            : cleanAmountPaid > 0
               ? BillPaymentStatus.PARTIALLY_PAID
               : BillPaymentStatus.UNPAID;
 
@@ -1710,7 +1809,7 @@ export const firestoreMessService: IMessDataService = {
           [`payments.${memberId}`]: {
             memberId,
             memberName,
-            amountPaid,
+            amountPaid: cleanAmountPaid,
             status: computedStatus,
             paymentDate,
             paymentMethod,
@@ -1728,7 +1827,7 @@ export const firestoreMessService: IMessDataService = {
         performedByName: user.displayName || 'Manager',
         targetMemberId: memberId,
         targetMemberName: memberName,
-        details: `Recorded payment of ৳${amountPaid} for ${memberName} (Status: ${computedStatus}, Method: ${paymentMethod})`,
+        details: `Recorded payment of ৳${cleanAmountPaid} for ${memberName} (Status: ${computedStatus}, Method: ${paymentMethod})`,
       });
     } catch (e) {
       if (isConcurrencyConflictError(e)) throw e;

@@ -34,6 +34,7 @@ import {
 import {
   format12Hour,
   getCurrentDhakaMonth,
+  getDhakaDateTime,
   getTodayDhakaDate,
   isDeadlinePassed,
   isFriday as checkIsFriday,
@@ -794,6 +795,13 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       expectedVersion?: number | null
     ): Promise<boolean> => {
       if (!selectedMessId || !authUser) return false;
+      if (currentMember && !currentMember.isActive) {
+        showUiMessage(
+          'Your account is currently inactive. Meal bookings are disabled until a Manager reactivates your account.',
+          'error'
+        );
+        return false;
+      }
       const memberId = currentMember?.id || authUser.uid;
       const lunchCutoff = currentMess?.lunchBookingDeadline || '09:00';
       const nightCutoff = currentMess?.nightBookingDeadline || '17:00';
@@ -878,6 +886,13 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const setAutoBooking = useCallback(
     async (enabled: boolean, bookLunch = true, bookNight = true) => {
       if (!selectedMessId || !authUser) return;
+      if (enabled && currentMember && !currentMember.isActive) {
+        showUiMessage(
+          'Your account is currently inactive. Auto-booking is disabled until a Manager reactivates your account.',
+          'error'
+        );
+        return;
+      }
       const memberId = currentMember?.id || authUser.uid;
       const effectiveLunchPref = enabled && !bookLunch && !bookNight ? true : bookLunch;
       const effectiveNightPref = bookNight;
@@ -885,7 +900,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       const nightCutoff = currentMess?.nightBookingDeadline || '17:00';
 
       try {
-        const updatedDate = enabled ? todayDhakaDate : '';
+        const updatedDate = enabled ? getDhakaDateTime() : '';
         await service.updateMemberAutoBookPreference({
           messId: selectedMessId,
           memberId,
@@ -1579,13 +1594,21 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       try {
-        await service.updateMemberStatus(selectedMessId, memberId, isActive);
-        showUiMessage(`Member marked as ${isActive ? 'Active' : 'Inactive'}.`);
+        await service.updateMemberStatus(selectedMessId, memberId, isActive, {
+          todayDate: todayDhakaDate,
+          lunchDeadline: currentMess?.lunchBookingDeadline || '09:00',
+          nightDeadline: currentMess?.nightBookingDeadline || '17:00',
+        });
+        showUiMessage(
+          isActive
+            ? 'Member marked as Active.'
+            : 'Member marked as Inactive. Auto-booking disabled and unlocked future bookings cancelled.'
+        );
       } catch (e) {
         showUiMessage(e instanceof Error ? e.message : 'Failed to update member.', 'error');
       }
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [currentMess, isManager, selectedMessId, service, showUiMessage, todayDhakaDate]
   );
 
   const promoteMemberToManager = useCallback(

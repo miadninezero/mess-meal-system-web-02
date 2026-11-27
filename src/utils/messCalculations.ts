@@ -16,10 +16,59 @@ import {
   getMemberShare,
   getSharedBillStats,
 } from '../types/mess';
-import { formatReadableDate, isDeadlinePassed, isFriday as checkIsFriday } from './dhakaTime';
+import {
+  formatReadableDate,
+  getTodayDhakaDate,
+  isDeadlinePassed,
+  isFriday as checkIsFriday,
+} from './dhakaTime';
 
 export function roundTwoDecimals(value: number): number {
+  if (!Number.isFinite(value)) return 0;
   return Math.round((value + (value >= 0 ? 1e-9 : -1e-9)) * 100) / 100;
+}
+
+/**
+ * Splits a total monetary amount equally across assigned member IDs down to exact paisa (0.01 BDT).
+ * Remainder paisa are deterministically distributed (+0.01 each) across the first `remainder` members
+ * so that the sum of memberShares strictly equals the rounded totalAmount with zero rounding drift.
+ */
+export function allocateEqualShares(
+  totalAmount: number,
+  memberIds: string[]
+): {
+  totalAmount: number;
+  perMemberAmount: number;
+  memberShares: Record<string, number>;
+} {
+  const roundedTotal = roundTwoDecimals(Math.max(0, Number.isFinite(totalAmount) ? totalAmount : 0));
+  const count = memberIds.length;
+  const memberShares: Record<string, number> = {};
+  if (count === 0) {
+    return { totalAmount: roundedTotal, perMemberAmount: 0, memberShares };
+  }
+
+  const totalPaisa = Math.round(roundedTotal * 100);
+  const basePaisa = Math.floor(totalPaisa / count);
+  const remainderPaisa = totalPaisa % count;
+
+  for (let i = 0; i < count; i += 1) {
+    const sharePaisa = basePaisa + (i < remainderPaisa ? 1 : 0);
+    memberShares[memberIds[i]] = sharePaisa / 100;
+  }
+
+  return {
+    totalAmount: roundedTotal,
+    perMemberAmount: roundTwoDecimals(roundedTotal / count),
+    memberShares,
+  };
+}
+
+export function getMemberJoinDate(member: Member): string {
+  if (typeof member.createdAt !== 'number' || !Number.isFinite(member.createdAt) || member.createdAt <= 0) {
+    return '';
+  }
+  return getTodayDhakaDate(new Date(member.createdAt));
 }
 
 /**
@@ -163,15 +212,59 @@ export function resolveEffectiveBooking(params: {
   explicitBooking?: MealBookingEntry | null;
   date: string;
   isFriday: boolean;
+  lunchDeadline?: string;
+  nightDeadline?: string;
 }): MealBookingEntry {
-  const { member, explicitBooking, date, isFriday } = params;
-  const base = explicitBooking ? { ...explicitBooking } : defaultBookingEntry();
+  const {
+    member,
+    explicitBooking,
+    date,
+    isFriday,
+    lunchDeadline = '09:00',
+    nightDeadline = '17:00',
+  } = params;
+  const joinDate = getMemberJoinDate(member);
+  const rawBase = explicitBooking ? { ...explicitBooking } : defaultBookingEntry();
+
+  // Never count pre-joining auto-booked entries (manual overrides or non-auto explicit entries remain untouched).
+  const base =
+    joinDate && date < joinDate && rawBase.autoBooked && !rawBase.managerOverrideReason
+      ? { ...defaultBookingEntry(), updatedBy: rawBase.updatedBy }
+      : rawBase;
 
   if (!member.autoBookEnabled || !member.isActive) return base;
-  if (member.autoBookUpdatedAt && date < member.autoBookUpdatedAt) return base;
+  if (joinDate && date < joinDate) return base;
 
-  const lunchNeedsAuto = base.statusLunch === 'NO_RESPONSE';
-  const nightNeedsAuto = !isFriday && base.statusNight === 'NO_RESPONSE';
+  const rawAutoUpdated = (member.autoBookUpdatedAt || '').trim();
+  const autoStartDate = rawAutoUpdated.slice(0, 10);
+  if (!autoStartDate && !joinDate) return base;
+  if (autoStartDate && date < autoStartDate) return base;
+
+  const joinTimestampDate =
+    joinDate && date === joinDate && typeof member.createdAt === 'number' && member.createdAt > 0
+      ? new Date(member.createdAt)
+      : null;
+  const lunchBlockedByJoinTime = joinTimestampDate
+    ? isDeadlinePassed(date, lunchDeadline, joinTimestampDate)
+    : false;
+  const nightBlockedByJoinTime = joinTimestampDate
+    ? isDeadlinePassed(date, nightDeadline, joinTimestampDate)
+    : false;
+
+  const autoStartTime = rawAutoUpdated.length >= 16 ? rawAutoUpdated.slice(11, 16) : '';
+  const lunchBlockedByAutoTime =
+    Boolean(autoStartTime) && autoStartDate === date && autoStartTime > lunchDeadline;
+  const nightBlockedByAutoTime =
+    Boolean(autoStartTime) && autoStartDate === date && autoStartTime > nightDeadline;
+
+  const lunchNeedsAuto =
+    base.statusLunch === 'NO_RESPONSE' && !lunchBlockedByJoinTime && !lunchBlockedByAutoTime;
+  const nightNeedsAuto =
+    !isFriday &&
+    base.statusNight === 'NO_RESPONSE' &&
+    !nightBlockedByJoinTime &&
+    !nightBlockedByAutoTime;
+
   if (!lunchNeedsAuto && !nightNeedsAuto) return base;
 
   const effectiveLunch = lunchNeedsAuto
@@ -196,6 +289,170 @@ export function resolveEffectiveBooking(params: {
   };
 }
 
+/**
+ * Resolves [memberUnits, guestUnits] for a single day record across all known members
+ * as well as any unlinked attendance/booking IDs.
+ * Attendance overrides apply per member (partial attendance does not erase other members' bookings).
+ */
+function resolveDayMemberUnitsBreakdown(params: {
+  record: DailyMealRecord;
+  members: Member[];
+  lunchDeadline: string;
+  nightDeadline: string;
+  now?: Date;
+}): Array<{ memberId: string; memberUnits: number; guestUnits: number }> {
+  const { record, members, lunchDeadline, nightDeadline, now } = params;
+  const isFri = record.isFriday || checkIsFriday(record.date);
+  const attendances = record.attendances || {};
+  const bookings = record.bookings || {};
+  const results: Array<{ memberId: string; memberUnits: number; guestUnits: number }> = [];
+  const handledIds = new Set<string>();
+
+  for (const member of members) {
+    handledIds.add(member.id);
+    const attendance = attendances[member.id];
+    if (attendance) {
+      const [mUnits, gUnits] = calculateAttendanceUnitsDetailed({
+        isFriday: isFri,
+        lunchServiceStatus: record.lunchServiceStatus,
+        nightServiceStatus: record.nightServiceStatus,
+        attendance,
+      });
+      results.push({ memberId: member.id, memberUnits: mUnits, guestUnits: gUnits });
+      continue;
+    }
+
+    const effectiveBooking = resolveEffectiveBooking({
+      member,
+      explicitBooking: bookings[member.id],
+      date: record.date,
+      isFriday: isFri,
+      lunchDeadline,
+      nightDeadline,
+    });
+    const [mUnits, gUnits] = calculateBookingUnits({
+      date: record.date,
+      isFriday: isFri,
+      lunchServiceStatus: record.lunchServiceStatus,
+      nightServiceStatus: record.nightServiceStatus,
+      lunchDeadline,
+      nightDeadline,
+      booking: effectiveBooking,
+      lunchFinalOrder: record.lunchFinalOrder,
+      nightFinalOrder: record.nightFinalOrder,
+      now,
+    });
+    results.push({ memberId: member.id, memberUnits: mUnits, guestUnits: gUnits });
+  }
+
+  for (const [memberId, attendance] of Object.entries(attendances)) {
+    if (handledIds.has(memberId)) continue;
+    handledIds.add(memberId);
+    const [mUnits, gUnits] = calculateAttendanceUnitsDetailed({
+      isFriday: isFri,
+      lunchServiceStatus: record.lunchServiceStatus,
+      nightServiceStatus: record.nightServiceStatus,
+      attendance,
+    });
+    results.push({ memberId, memberUnits: mUnits, guestUnits: gUnits });
+  }
+
+  for (const [memberId, booking] of Object.entries(bookings)) {
+    if (handledIds.has(memberId)) continue;
+    handledIds.add(memberId);
+    const [mUnits, gUnits] = calculateBookingUnits({
+      date: record.date,
+      isFriday: isFri,
+      lunchServiceStatus: record.lunchServiceStatus,
+      nightServiceStatus: record.nightServiceStatus,
+      lunchDeadline,
+      nightDeadline,
+      booking,
+      lunchFinalOrder: record.lunchFinalOrder,
+      nightFinalOrder: record.nightFinalOrder,
+      now,
+    });
+    results.push({ memberId, memberUnits: mUnits, guestUnits: gUnits });
+  }
+
+  return results;
+}
+
+export function planInactiveMemberBookingCancellations(params: {
+  record: DailyMealRecord;
+  memberId: string;
+  todayDate: string;
+  lunchDeadline?: string;
+  nightDeadline?: string;
+  actorUid: string;
+  reason?: string;
+  now?: Date;
+}): { changed: boolean; updatedBooking: MealBookingEntry } {
+  const {
+    record,
+    memberId,
+    todayDate,
+    lunchDeadline = '09:00',
+    nightDeadline = '17:00',
+    actorUid,
+    reason = 'Member marked inactive',
+    now,
+  } = params;
+  const date = record.date || record.id;
+  const existing = record.bookings?.[memberId];
+  if (!existing || date < todayDate) {
+    return { changed: false, updatedBooking: existing ?? defaultBookingEntry() };
+  }
+
+  const isFri = record.isFriday || checkIsFriday(date);
+  const isLunchLocked =
+    isDeadlinePassed(date, lunchDeadline, now) || record.lunchFinalOrder?.isLocked === true;
+  const isNightLocked = isFri
+    ? true
+    : isDeadlinePassed(date, nightDeadline, now) || record.nightFinalOrder?.isLocked === true;
+
+  const cancelLunch =
+    !isLunchLocked &&
+    (existing.statusLunch === 'BOOKED' || existing.guestLunch > 0 || existing.autoBooked);
+  const cancelNight =
+    !isNightLocked &&
+    (existing.statusNight === 'BOOKED' || existing.guestNight > 0 || existing.autoBooked);
+
+  if (!cancelLunch && !cancelNight) {
+    return { changed: false, updatedBooking: existing };
+  }
+
+  const nextLunch = cancelLunch ? 'CANCELLED' : existing.statusLunch;
+  const nextGuestLunch = cancelLunch ? 0 : existing.guestLunch;
+  const nextNight = cancelNight ? 'CANCELLED' : existing.statusNight;
+  const nextGuestNight = cancelNight ? 0 : existing.guestNight;
+
+  const didValuesChange =
+    nextLunch !== existing.statusLunch ||
+    nextGuestLunch !== existing.guestLunch ||
+    nextNight !== existing.statusNight ||
+    nextGuestNight !== existing.guestNight ||
+    existing.autoBooked;
+
+  if (!didValuesChange) {
+    return { changed: false, updatedBooking: existing };
+  }
+
+  return {
+    changed: true,
+    updatedBooking: {
+      ...existing,
+      statusLunch: nextLunch,
+      statusNight: nextNight,
+      guestLunch: nextGuestLunch,
+      guestNight: nextGuestNight,
+      autoBooked: false,
+      managerOverrideReason: reason,
+      updatedBy: actorUid,
+    },
+  };
+}
+
 export function calculateDayTotalUnits(params: {
   record: DailyMealRecord;
   members: Member[];
@@ -210,66 +467,16 @@ export function calculateDayTotalUnits(params: {
     nightDeadline = '17:00',
     now,
   } = params;
-  const isFri = record.isFriday || checkIsFriday(record.date);
 
-  const attendanceValues = Object.values(record.attendances || {});
-  if (attendanceValues.length > 0) {
-    const sum = attendanceValues.reduce(
-      (acc, attendance) =>
-        acc +
-        calculateAttendanceUnits({
-          isFriday: isFri,
-          lunchServiceStatus: record.lunchServiceStatus,
-          nightServiceStatus: record.nightServiceStatus,
-          attendance,
-        }),
-      0
-    );
-    return roundTwoDecimals(sum);
-  }
+  const breakdown = resolveDayMemberUnitsBreakdown({
+    record,
+    members,
+    lunchDeadline,
+    nightDeadline,
+    now,
+  });
 
-  let total = 0;
-  for (const member of members) {
-    const booking = resolveEffectiveBooking({
-      member,
-      explicitBooking: record.bookings?.[member.id],
-      date: record.date,
-      isFriday: isFri,
-    });
-    const [mUnits, gUnits] = calculateBookingUnits({
-      date: record.date,
-      isFriday: isFri,
-      lunchServiceStatus: record.lunchServiceStatus,
-      nightServiceStatus: record.nightServiceStatus,
-      lunchDeadline,
-      nightDeadline,
-      booking,
-      lunchFinalOrder: record.lunchFinalOrder,
-      nightFinalOrder: record.nightFinalOrder,
-      now,
-    });
-    total += mUnits + gUnits;
-  }
-
-  const accountedIds = new Set(members.map((m) => m.id));
-  for (const [id, b] of Object.entries(record.bookings || {})) {
-    if (!accountedIds.has(id)) {
-      const [mUnits, gUnits] = calculateBookingUnits({
-        date: record.date,
-        isFriday: isFri,
-        lunchServiceStatus: record.lunchServiceStatus,
-        nightServiceStatus: record.nightServiceStatus,
-        lunchDeadline,
-        nightDeadline,
-        booking: b,
-        lunchFinalOrder: record.lunchFinalOrder,
-        nightFinalOrder: record.nightFinalOrder,
-        now,
-      });
-      total += mUnits + gUnits;
-    }
-  }
-
+  const total = breakdown.reduce((acc, item) => acc + item.memberUnits + item.guestUnits, 0);
   return roundTwoDecimals(total);
 }
 
@@ -307,83 +514,20 @@ export function calculateSummary(params: {
   let totalMessUnits = 0;
 
   for (const record of dailyMeals) {
-    const isFri = record.isFriday || checkIsFriday(record.date);
-    const hasAttendance = Object.keys(record.attendances || {}).length > 0;
-
-    if (hasAttendance) {
-      for (const [memberId, attendance] of Object.entries(record.attendances)) {
-        const [mUnits, gUnits] = calculateAttendanceUnitsDetailed({
-          isFriday: isFri,
-          lunchServiceStatus: record.lunchServiceStatus,
-          nightServiceStatus: record.nightServiceStatus,
-          attendance,
-        });
-        const dayTotal = mUnits + gUnits;
-        memberUnitsMap[memberId] = (memberUnitsMap[memberId] ?? 0) + dayTotal;
-        memberOnlyUnitsMap[memberId] = (memberOnlyUnitsMap[memberId] ?? 0) + mUnits;
-        guestOnlyUnitsMap[memberId] = (guestOnlyUnitsMap[memberId] ?? 0) + gUnits;
-        totalMessUnits += dayTotal;
-      }
-    } else {
-      const accountedIds = new Set<string>();
-      for (const [memberId, booking] of Object.entries(record.bookings || {})) {
-        accountedIds.add(memberId);
-        const memberObj = members.find((m) => m.id === memberId);
-        const effectiveBooking = memberObj
-          ? resolveEffectiveBooking({
-              member: memberObj,
-              explicitBooking: booking,
-              date: record.date,
-              isFriday: isFri,
-            })
-          : booking;
-
-        const [mUnits, gUnits] = calculateBookingUnits({
-          date: record.date,
-          isFriday: isFri,
-          lunchServiceStatus: record.lunchServiceStatus,
-          nightServiceStatus: record.nightServiceStatus,
-          lunchDeadline,
-          nightDeadline,
-          booking: effectiveBooking,
-          lunchFinalOrder: record.lunchFinalOrder,
-          nightFinalOrder: record.nightFinalOrder,
-          now,
-        });
-        const memberDayTotal = mUnits + gUnits;
-        memberUnitsMap[memberId] = (memberUnitsMap[memberId] ?? 0) + memberDayTotal;
-        memberOnlyUnitsMap[memberId] = (memberOnlyUnitsMap[memberId] ?? 0) + mUnits;
-        guestOnlyUnitsMap[memberId] = (guestOnlyUnitsMap[memberId] ?? 0) + gUnits;
-        totalMessUnits += memberDayTotal;
-      }
-
-      for (const member of members) {
-        if (!accountedIds.has(member.id) && member.autoBookEnabled && member.isActive) {
-          const effectiveBooking = resolveEffectiveBooking({
-            member,
-            explicitBooking: null,
-            date: record.date,
-            isFriday: isFri,
-          });
-          const [mUnits, gUnits] = calculateBookingUnits({
-            date: record.date,
-            isFriday: isFri,
-            lunchServiceStatus: record.lunchServiceStatus,
-            nightServiceStatus: record.nightServiceStatus,
-            lunchDeadline,
-            nightDeadline,
-            booking: effectiveBooking,
-            lunchFinalOrder: record.lunchFinalOrder,
-            nightFinalOrder: record.nightFinalOrder,
-            now,
-          });
-          const memberDayTotal = mUnits + gUnits;
-          memberUnitsMap[member.id] = (memberUnitsMap[member.id] ?? 0) + memberDayTotal;
-          memberOnlyUnitsMap[member.id] = (memberOnlyUnitsMap[member.id] ?? 0) + mUnits;
-          guestOnlyUnitsMap[member.id] = (guestOnlyUnitsMap[member.id] ?? 0) + gUnits;
-          totalMessUnits += memberDayTotal;
-        }
-      }
+    const breakdown = resolveDayMemberUnitsBreakdown({
+      record,
+      members,
+      lunchDeadline,
+      nightDeadline,
+      now,
+    });
+    for (const { memberId, memberUnits, guestUnits } of breakdown) {
+      const dayTotal = memberUnits + guestUnits;
+      if (dayTotal <= 0 && memberUnitsMap[memberId] === undefined) continue;
+      memberUnitsMap[memberId] = (memberUnitsMap[memberId] ?? 0) + dayTotal;
+      memberOnlyUnitsMap[memberId] = (memberOnlyUnitsMap[memberId] ?? 0) + memberUnits;
+      guestOnlyUnitsMap[memberId] = (guestOnlyUnitsMap[memberId] ?? 0) + guestUnits;
+      totalMessUnits += dayTotal;
     }
   }
 
@@ -512,6 +656,8 @@ export function computeKitchenOrderSummary(params: {
             explicitBooking: explicit,
             date: selectedDate,
             isFriday: isFri,
+            lunchDeadline,
+            nightDeadline,
           })
         : explicit ?? defaultBookingEntry();
 

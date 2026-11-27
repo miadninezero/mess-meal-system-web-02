@@ -1,19 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  allocateEqualShares,
   buildMemberSummaryRows,
   calculateAttendanceUnits,
   calculateBookingUnits,
+  calculateDayTotalUnits,
   calculateSummary,
   computeKitchenOrderSummary,
   computeMonthlyBazaarVsDeposits,
   getMemberBalanceStatus,
+  planInactiveMemberBookingCancellations,
   resolveEffectiveBooking,
   roundTwoDecimals,
 } from './messCalculations';
 import {
   format12Hour,
   formatReadableDate,
+  getTodayDhakaDate,
   isDeadlinePassed,
   isFriday,
   shiftDate,
@@ -28,7 +32,9 @@ import {
   getMemberDue,
   getMemberPaymentStatus,
   getMemberShare,
+  getSharedBillStats,
 } from '../types/mess';
+import { DEMO_USER_ID, demoMessService } from '../services/demoMessService';
 
 function makeMember(id: string, name: string, isActive = true): Member {
   return {
@@ -430,5 +436,419 @@ test('Member summary rows calculate deposits, meals eaten, and balance status ac
 
   assert.equal(rows[2].status, 'SETTLED');
   assert.equal(rows[2].isActive, false);
+});
+
+test('Incomplete attendance applies per member without erasing other members confirmed bookings', () => {
+  const autoMember: Member = {
+    ...makeMember('m4', 'Nafis'),
+    autoBookEnabled: true,
+    autoBookLunch: true,
+    autoBookNight: false,
+    autoBookUpdatedAt: '2026-11-18',
+  };
+  const members = [
+    makeMember('m1', 'Rahim'),
+    makeMember('m2', 'Karim'),
+    makeMember('m3', 'Jamal'),
+    autoMember,
+  ];
+
+  const record: DailyMealRecord = {
+    id: '2026-11-18',
+    date: '2026-11-18',
+    isFriday: false,
+    lunchServiceStatus: 'ACTIVE',
+    nightServiceStatus: 'ACTIVE',
+    cancellationReason: '',
+    bookings: {
+      m1: { ...defaultBookingEntry(), statusLunch: 'BOOKED', statusNight: 'BOOKED' },
+      m2: { ...defaultBookingEntry(), statusLunch: 'BOOKED', statusNight: 'BOOKED' },
+      m3: { ...defaultBookingEntry(), statusLunch: 'CANCELLED', statusNight: 'BOOKED', guestNight: 1 },
+    },
+    // Manager only recorded attendance override for m1 (ate lunch only -> 1.5 instead of 2.0)
+    attendances: {
+      m1: {
+        attendedLunch: true,
+        attendedNight: false,
+        guestLunchAttended: 0,
+        guestNightAttended: 0,
+        calculatedUnits: 1.5,
+      },
+    },
+    totalDayUnits: 0,
+    totalDayMeals: 0,
+    updatedBy: 'm1',
+  };
+
+  const nowAfter = new Date('2026-11-19T00:00:00Z');
+  // Expected: m1 = 1.5 (attendance), m2 = 2.0 (booking), m3 = 2.0 (1M + 1G booking), m4 = 1.5 (autoBook lunch only) => 7.0
+  const dayTotal = calculateDayTotalUnits({ record, members, now: nowAfter });
+  assert.equal(dayTotal, 7.0);
+
+  const summary = calculateSummary({
+    members,
+    dailyMeals: [record],
+    bazaarExpenses: [{ id: 'b1', buyerMemberId: 'm1', buyerName: 'Rahim', amount: 700, itemsDescription: 'Bazaar', category: 'Groceries', date: '2026-11-18' }],
+    deposits: [],
+    utilityBills: [],
+    now: nowAfter,
+  });
+
+  assert.equal(summary.totalUnits, 7.0);
+  assert.equal(summary.mealRate, 100);
+  assert.equal(summary.memberSettlements.find((s) => s.memberId === 'm1')?.totalUnits, 1.5);
+  assert.equal(summary.memberSettlements.find((s) => s.memberId === 'm2')?.totalUnits, 2.0);
+  assert.equal(summary.memberSettlements.find((s) => s.memberId === 'm3')?.totalUnits, 2.0);
+  assert.equal(summary.memberSettlements.find((s) => s.memberId === 'm4')?.totalUnits, 1.5);
+});
+
+test('Pre-joining automatic meal calculations are blocked before join date and before join-day cutoffs', () => {
+  // Member joined on Wednesday 2026-11-18 at 14:00 Asia/Dhaka (08:00 UTC)
+  const joinTimeMs = Date.UTC(2026, 10, 18, 8, 0, 0);
+  const lateJoiner: Member = {
+    ...makeMember('m_new', 'New Member'),
+    autoBookEnabled: true,
+    autoBookLunch: true,
+    autoBookNight: true,
+    autoBookUpdatedAt: '2026-11-18T14:05',
+    createdAt: joinTimeMs,
+  };
+
+  // Day BEFORE joining (even if another record exists or stray autoBooked residue was present)
+  const beforeJoin = resolveEffectiveBooking({
+    member: lateJoiner,
+    explicitBooking: null,
+    date: '2026-11-17',
+    isFriday: false,
+    lunchDeadline: '09:00',
+    nightDeadline: '17:00',
+  });
+  assert.equal(beforeJoin.statusLunch, 'NO_RESPONSE');
+  assert.equal(beforeJoin.statusNight, 'NO_RESPONSE');
+
+  const strayAutoBeforeJoin = resolveEffectiveBooking({
+    member: lateJoiner,
+    explicitBooking: {
+      ...defaultBookingEntry(),
+      statusLunch: 'BOOKED',
+      statusNight: 'BOOKED',
+      autoBooked: true,
+    },
+    date: '2026-11-16',
+    isFriday: false,
+    lunchDeadline: '09:00',
+    nightDeadline: '17:00',
+  });
+  assert.equal(strayAutoBeforeJoin.statusLunch, 'NO_RESPONSE');
+  assert.equal(strayAutoBeforeJoin.statusNight, 'NO_RESPONSE');
+
+  // Even if autoBookUpdatedAt is empty string, pre-join dates must never auto-book
+  const emptyAutoDateMember: Member = {
+    ...lateJoiner,
+    autoBookUpdatedAt: '',
+  };
+  const beforeJoinEmptyAuto = resolveEffectiveBooking({
+    member: emptyAutoDateMember,
+    explicitBooking: null,
+    date: '2026-11-17',
+    isFriday: false,
+  });
+  assert.equal(beforeJoinEmptyAuto.statusLunch, 'NO_RESPONSE');
+  assert.equal(beforeJoinEmptyAuto.statusNight, 'NO_RESPONSE');
+
+  // On join date (2026-11-18 at 14:00 Dhaka), lunch deadline 09:00 already passed, night deadline 17:00 is still open
+  const onJoinDay = resolveEffectiveBooking({
+    member: lateJoiner,
+    explicitBooking: null,
+    date: '2026-11-18',
+    isFriday: false,
+    lunchDeadline: '09:00',
+    nightDeadline: '17:00',
+  });
+  assert.equal(onJoinDay.statusLunch, 'NO_RESPONSE');
+  assert.equal(onJoinDay.statusNight, 'BOOKED');
+
+  // Day AFTER joining -> both Lunch & Night auto-book normally
+  const afterJoin = resolveEffectiveBooking({
+    member: lateJoiner,
+    explicitBooking: null,
+    date: '2026-11-19',
+    isFriday: false,
+    lunchDeadline: '09:00',
+    nightDeadline: '17:00',
+  });
+  assert.equal(afterJoin.statusLunch, 'BOOKED');
+  assert.equal(afterJoin.statusNight, 'BOOKED');
+
+  const summary = calculateSummary({
+    members: [lateJoiner],
+    dailyMeals: [
+      {
+        id: '2026-11-17',
+        date: '2026-11-17',
+        isFriday: false,
+        lunchServiceStatus: 'ACTIVE',
+        nightServiceStatus: 'ACTIVE',
+        cancellationReason: '',
+        bookings: {},
+        attendances: {},
+        totalDayUnits: 0,
+        totalDayMeals: 0,
+        updatedBy: 'admin',
+      },
+      {
+        id: '2026-11-18',
+        date: '2026-11-18',
+        isFriday: false,
+        lunchServiceStatus: 'ACTIVE',
+        nightServiceStatus: 'ACTIVE',
+        cancellationReason: '',
+        bookings: {},
+        attendances: {},
+        totalDayUnits: 0,
+        totalDayMeals: 0,
+        updatedBy: 'admin',
+      },
+      {
+        id: '2026-11-19',
+        date: '2026-11-19',
+        isFriday: false,
+        lunchServiceStatus: 'ACTIVE',
+        nightServiceStatus: 'ACTIVE',
+        cancellationReason: '',
+        bookings: {},
+        attendances: {},
+        totalDayUnits: 0,
+        totalDayMeals: 0,
+        updatedBy: 'admin',
+      },
+    ],
+    bazaarExpenses: [],
+    deposits: [],
+    utilityBills: [],
+    now: new Date('2026-11-20T00:00:00Z'),
+  });
+
+  // 0 (Nov 17 pre-join) + 1.0 (Nov 18 night only) + 2.0 (Nov 19 both) = 3.0 units
+  assert.equal(summary.totalUnits, 3.0);
+});
+
+test('Shared bill equal splitting reconciles to exact total without paisa drift', async () => {
+  const split3 = allocateEqualShares(100, ['m1', 'm2', 'm3']);
+  assert.equal(split3.totalAmount, 100);
+  assert.deepEqual(split3.memberShares, { m1: 33.34, m2: 33.33, m3: 33.33 });
+  assert.equal(
+    roundTwoDecimals(Object.values(split3.memberShares).reduce((a, b) => a + b, 0)),
+    100
+  );
+
+  const split6 = allocateEqualShares(100, ['m1', 'm2', 'm3', 'm4', 'm5', 'm6']);
+  assert.equal(
+    roundTwoDecimals(Object.values(split6.memberShares).reduce((a, b) => a + b, 0)),
+    100
+  );
+  assert.deepEqual(split6.memberShares, {
+    m1: 16.67,
+    m2: 16.67,
+    m3: 16.67,
+    m4: 16.67,
+    m5: 16.66,
+    m6: 16.66,
+  });
+
+  // End-to-end demoMessService create + full payments leaves exactly 0 outstanding
+  demoMessService.resetDemoData();
+  let bills: SharedBill[] = [];
+  let members: Member[] = [];
+  const unsub = demoMessService.observeMessBundle('GV-MESS-2026', DEMO_USER_ID, {
+    onSharedBills: (s) => {
+      bills = s;
+    },
+    onMembers: (m) => {
+      members = m;
+    },
+  });
+
+  const threeMembers = members.slice(0, 3);
+  const billId = await demoMessService.createSharedBill({
+    messId: 'GV-MESS-2026',
+    title: 'Water Filter Maintenance',
+    allocationType: BillAllocationType.DIVIDED_EQUALLY,
+    amountInput: 1000,
+    month: getTodayDhakaDate().slice(0, 7),
+    deadline: shiftDate(getTodayDhakaDate(), 3),
+    notes: '',
+    activeMembers: threeMembers,
+    customShares: {},
+  });
+
+  const created = bills.find((b) => b.id === billId)!;
+  assert.equal(created.totalAmount, 1000);
+  const shareSum = roundTwoDecimals(
+    Object.values(created.memberShares).reduce((a, b) => a + b, 0)
+  );
+  assert.equal(shareSum, 1000);
+
+  for (const m of threeMembers) {
+    const share = getMemberShare(created, m.id);
+    const liveBill = bills.find((b) => b.id === billId)!;
+    await demoMessService.recordBillPayment({
+      messId: 'GV-MESS-2026',
+      billId,
+      memberId: m.id,
+      memberName: m.displayName,
+      assignedShare: share,
+      amountPaid: share,
+      paymentMethod: 'Cash',
+      paymentDate: getTodayDhakaDate(),
+      notes: '',
+      expectedVersion: liveBill.version ?? 1,
+    });
+  }
+
+  const paidBill = bills.find((b) => b.id === billId)!;
+  const stats = getSharedBillStats(paidBill);
+  assert.equal(stats.totalCollected, 1000);
+  assert.equal(stats.outstandingBalance, 0);
+  assert.equal(stats.paidMembersCount, 3);
+  assert.equal(stats.unpaidMembersCount, 0);
+  for (const m of threeMembers) {
+    assert.equal(getMemberDue(paidBill, m.id), 0);
+  }
+  unsub();
+});
+
+test('Marking a member inactive disables auto-book, cancels unlocked future bookings, preserves locked/past meals, and blocks new self-bookings', async () => {
+  // 1. Unit check on planInactiveMemberBookingCancellations at 11:00 Dhaka (lunch 09:00 passed, night 17:00 open) on Wednesday
+  const today = '2026-11-25';
+  const midDayNow = new Date('2026-11-25T05:00:00Z'); // 11:00 Asia/Dhaka
+  const todayRecord: DailyMealRecord = {
+    id: today,
+    date: today,
+    isFriday: false,
+    lunchServiceStatus: 'ACTIVE',
+    nightServiceStatus: 'ACTIVE',
+    cancellationReason: '',
+    bookings: {
+      mem_rahim: {
+        ...defaultBookingEntry(),
+        statusLunch: 'BOOKED',
+        statusNight: 'BOOKED',
+        guestLunch: 1,
+        guestNight: 2,
+        autoBooked: true,
+      },
+    },
+    attendances: {},
+    totalDayUnits: 0,
+    totalDayMeals: 0,
+    version: 1,
+    updatedBy: 'mem_rahim',
+  };
+
+  const todayPlan = planInactiveMemberBookingCancellations({
+    record: todayRecord,
+    memberId: 'mem_rahim',
+    todayDate: today,
+    lunchDeadline: '09:00',
+    nightDeadline: '17:00',
+    actorUid: 'mgr',
+    now: midDayNow,
+  });
+  assert.equal(todayPlan.changed, true);
+  // Lunch already passed -> preserved; Night still open -> cancelled & guests cleared
+  assert.equal(todayPlan.updatedBooking.statusLunch, 'BOOKED');
+  assert.equal(todayPlan.updatedBooking.guestLunch, 1);
+  assert.equal(todayPlan.updatedBooking.statusNight, 'CANCELLED');
+  assert.equal(todayPlan.updatedBooking.guestNight, 0);
+  assert.equal(todayPlan.updatedBooking.autoBooked, false);
+
+  // Past record -> untouched
+  const pastPlan = planInactiveMemberBookingCancellations({
+    record: { ...todayRecord, id: '2026-11-24', date: '2026-11-24' },
+    memberId: 'mem_rahim',
+    todayDate: today,
+    actorUid: 'mgr',
+    now: midDayNow,
+  });
+  assert.equal(pastPlan.changed, false);
+
+  // 2. Service-level check in demoMessService
+  demoMessService.resetDemoData();
+  let members: Member[] = [];
+  let dailyMeals: DailyMealRecord[] = [];
+  const unsub = demoMessService.observeMessBundle('GV-MESS-2026', DEMO_USER_ID, {
+    onMembers: (m) => {
+      members = m;
+    },
+    onDailyMeals: (d) => {
+      dailyMeals = d;
+    },
+  });
+
+  const liveToday = getTodayDhakaDate();
+  const futureDate = shiftDate(liveToday, 2);
+  await demoMessService.saveMemberBooking({
+    messId: 'GV-MESS-2026',
+    date: futureDate,
+    memberId: 'mem_rahim',
+    booking: {
+      ...defaultBookingEntry(),
+      statusLunch: 'BOOKED',
+      statusNight: 'BOOKED',
+      guestLunch: 1,
+      guestNight: 0,
+    },
+    lunchDeadline: '09:00',
+    nightDeadline: '17:00',
+    isManager: false,
+    expectedVersion: null,
+  });
+
+  await demoMessService.updateMemberStatus('GV-MESS-2026', 'mem_rahim', false, {
+    todayDate: liveToday,
+    lunchDeadline: '09:00',
+    nightDeadline: '17:00',
+  });
+
+  const rahim = members.find((m) => m.id === 'mem_rahim')!;
+  assert.equal(rahim.isActive, false);
+  assert.equal(rahim.autoBookEnabled, false);
+
+  const futureRec = dailyMeals.find((r) => r.date === futureDate)!;
+  assert.equal(futureRec.bookings.mem_rahim.statusLunch, 'CANCELLED');
+  assert.equal(futureRec.bookings.mem_rahim.statusNight, 'CANCELLED');
+  assert.equal(futureRec.bookings.mem_rahim.guestLunch, 0);
+  assert.equal(futureRec.bookings.mem_rahim.autoBooked, false);
+  assert.equal(futureRec.version, 2);
+
+  // Yesterday's historical meal for mem_rahim remains untouched
+  const yesterday = shiftDate(liveToday, -1);
+  const yesterdayRec = dailyMeals.find((r) => r.date === yesterday)!;
+  assert.equal(yesterdayRec.bookings.mem_rahim.statusLunch, 'BOOKED');
+  assert.equal(yesterdayRec.bookings.mem_rahim.statusNight, 'BOOKED');
+
+  // Inactive member cannot submit a new self-booking
+  await assert.rejects(
+    demoMessService.saveMemberBooking({
+      messId: 'GV-MESS-2026',
+      date: futureDate,
+      memberId: 'mem_rahim',
+      booking: { ...defaultBookingEntry(), statusLunch: 'BOOKED', statusNight: 'BOOKED' },
+      lunchDeadline: '09:00',
+      nightDeadline: '17:00',
+      isManager: false,
+      expectedVersion: futureRec.version ?? 2,
+    }),
+    /inactive/i
+  );
+
+  // Reactivating keeps autoBookEnabled off until member explicitly opts in
+  await demoMessService.updateMemberStatus('GV-MESS-2026', 'mem_rahim', true);
+  const reactivated = members.find((m) => m.id === 'mem_rahim')!;
+  assert.equal(reactivated.isActive, true);
+  assert.equal(reactivated.autoBookEnabled, false);
+
+  unsub();
 });
 

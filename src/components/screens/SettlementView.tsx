@@ -215,7 +215,7 @@ export function SettlementView() {
                     <td className="py-3.5 px-4">
                       <div className="font-medium text-[#201A17] dark:text-[#EDE0DB]">{s.memberName}</div>
                       <div className="text-xs text-[#85736D] dark:text-[#A08C86] flex items-center gap-2">
-                        <span>{isActive ? 'Active' : 'Inactive (No utility split)'}</span>
+                        <span>{isActive ? 'Active' : 'Inactive (No utility split · Future meals cancelled)'}</span>
                         {isManager && memObj && (
                           <button
                             type="button"

@@ -76,6 +76,7 @@ export function DailyMealsView() {
   const isLunchPassed = isDeadlinePassed(selectedDate, lunchDeadline);
   const isNightPassed = isFri ? true : isDeadlinePassed(selectedDate, nightDeadline);
 
+  const isMemberInactive = currentMember?.isActive === false;
   const myMemberId = currentMember?.id || authUser?.uid || '';
   const rawBooking = currentRecord?.bookings?.[myMemberId];
   const myBooking =
@@ -85,6 +86,8 @@ export function DailyMealsView() {
           explicitBooking: rawBooking,
           date: selectedDate,
           isFriday: isFri,
+          lunchDeadline,
+          nightDeadline,
         })
       : rawBooking ?? defaultBookingEntry();
 
@@ -171,6 +174,8 @@ export function DailyMealsView() {
       explicitBooking: explicit,
       date: selectedDate,
       isFriday: isFri,
+      lunchDeadline,
+      nightDeadline,
     });
     setOvrLunch(effective.statusLunch === 'BOOKED' ? 'BOOKED' : 'CANCELLED');
     setOvrNight(effective.statusNight === 'BOOKED' ? 'BOOKED' : 'CANCELLED');
@@ -189,6 +194,8 @@ export function DailyMealsView() {
       explicitBooking: explicit,
       date: selectedDate,
       isFriday: isFri,
+      lunchDeadline,
+      nightDeadline,
     });
     setOvrLunch(effective.statusLunch === 'BOOKED' ? 'BOOKED' : 'CANCELLED');
     setOvrNight(effective.statusNight === 'BOOKED' ? 'BOOKED' : 'CANCELLED');
@@ -209,6 +216,8 @@ export function DailyMealsView() {
             explicitBooking: explicit,
             date: selectedDate,
             isFriday: isFri,
+            lunchDeadline,
+            nightDeadline,
           })
         : explicit ?? defaultBookingEntry();
     const [mUnits, gUnits] = calculateBookingUnits({
@@ -376,6 +385,16 @@ export function DailyMealsView() {
       {/* TAB 1: MY BOOKING */}
       {subTab === 'my_booking' && (
         <div className="space-y-6">
+          {isMemberInactive && (
+            <div className="p-4 rounded-xl bg-rose-50 dark:bg-[#93000A]/30 border border-rose-200 dark:border-[#93000A] text-sm text-rose-900 dark:text-[#FFDAD6] space-y-1">
+              <div className="font-semibold">Account Inactive · Future Bookings Paused</div>
+              <p className="text-xs text-rose-800 dark:text-[#FFB4AB]">
+                Your membership status is currently Inactive. Unlocked future meal bookings have
+                been cancelled and new bookings are disabled until a Manager reactivates your account.
+              </p>
+            </div>
+          )}
+
           {/* Auto-Booking Preferences */}
           {currentMember && (
             <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-5 flex flex-wrap items-center justify-between gap-4">
@@ -393,6 +412,7 @@ export function DailyMealsView() {
                   <div className="flex items-center gap-1 p-1 bg-[#F4DFD7]/60 dark:bg-[#352A25] rounded-lg">
                     <button
                       type="button"
+                      disabled={isMemberInactive}
                       onClick={() =>
                         setAutoBooking(
                           true,
@@ -400,7 +420,7 @@ export function DailyMealsView() {
                           currentMember.autoBookNight
                         )
                       }
-                      className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer ${
+                      className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                         currentMember.autoBookLunch
                           ? 'bg-white dark:bg-[#221B18] text-[#0D7351] dark:text-[#89D6B7] shadow-sm'
                           : 'text-[#52443E] dark:text-[#D7C3BC]'
@@ -410,6 +430,7 @@ export function DailyMealsView() {
                     </button>
                     <button
                       type="button"
+                      disabled={isMemberInactive}
                       onClick={() =>
                         setAutoBooking(
                           true,
@@ -417,7 +438,7 @@ export function DailyMealsView() {
                           !currentMember.autoBookNight
                         )
                       }
-                      className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer ${
+                      className={`px-3 py-1 text-xs font-medium rounded-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                         currentMember.autoBookNight
                           ? 'bg-white dark:bg-[#221B18] text-[#0D7351] dark:text-[#89D6B7] shadow-sm'
                           : 'text-[#52443E] dark:text-[#D7C3BC]'
@@ -430,6 +451,7 @@ export function DailyMealsView() {
                 <button
                   type="button"
                   role="switch"
+                  disabled={isMemberInactive}
                   aria-checked={currentMember.autoBookEnabled}
                   onClick={() =>
                     setAutoBooking(
@@ -438,7 +460,7 @@ export function DailyMealsView() {
                       currentMember.autoBookNight
                     )
                   }
-                  className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                  className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     currentMember.autoBookEnabled
                       ? 'bg-[#C05621] text-white hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:text-[#5F1B00] dark:hover:bg-[#F2A386]'
                       : 'bg-[#F4DFD7] dark:bg-[#352A25] text-[#52443E] dark:text-[#D7C3BC] hover:bg-[#E8D9D3] dark:hover:bg-[#463832]'
@@ -482,7 +504,7 @@ export function DailyMealsView() {
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   type="button"
-                  disabled={!kitchenSummary.lunchActive || isLunchPassed}
+                  disabled={isMemberInactive || !kitchenSummary.lunchActive || isLunchPassed}
                   onClick={() => {
                     setStatusLunch('BOOKED');
                     setIsBookingDirty(true);
@@ -497,7 +519,7 @@ export function DailyMealsView() {
                 </button>
                 <button
                   type="button"
-                  disabled={!kitchenSummary.lunchActive || isLunchPassed}
+                  disabled={isMemberInactive || !kitchenSummary.lunchActive || isLunchPassed}
                   onClick={() => {
                     setStatusLunch('CANCELLED');
                     setIsBookingDirty(true);
@@ -521,7 +543,7 @@ export function DailyMealsView() {
                   <button
                     type="button"
                     aria-label="Decrease lunch guests"
-                    disabled={!kitchenSummary.lunchActive || isLunchPassed || guestLunch <= 0}
+                    disabled={isMemberInactive || !kitchenSummary.lunchActive || isLunchPassed || guestLunch <= 0}
                     onClick={() => {
                       setGuestLunch((v) => Math.max(0, v - 1));
                       setIsBookingDirty(true);
@@ -536,7 +558,7 @@ export function DailyMealsView() {
                   <button
                     type="button"
                     aria-label="Increase lunch guests"
-                    disabled={!kitchenSummary.lunchActive || isLunchPassed}
+                    disabled={isMemberInactive || !kitchenSummary.lunchActive || isLunchPassed}
                     onClick={() => {
                       setGuestLunch((v) => v + 1);
                       setIsBookingDirty(true);
@@ -590,7 +612,7 @@ export function DailyMealsView() {
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
-                      disabled={!kitchenSummary.nightActive || isNightPassed}
+                      disabled={isMemberInactive || !kitchenSummary.nightActive || isNightPassed}
                       onClick={() => {
                         setStatusNight('BOOKED');
                         setIsBookingDirty(true);
@@ -605,7 +627,7 @@ export function DailyMealsView() {
                     </button>
                     <button
                       type="button"
-                      disabled={!kitchenSummary.nightActive || isNightPassed}
+                      disabled={isMemberInactive || !kitchenSummary.nightActive || isNightPassed}
                       onClick={() => {
                         setStatusNight('CANCELLED');
                         setIsBookingDirty(true);
@@ -629,7 +651,7 @@ export function DailyMealsView() {
                       <button
                         type="button"
                         aria-label="Decrease night guests"
-                        disabled={!kitchenSummary.nightActive || isNightPassed || guestNight <= 0}
+                        disabled={isMemberInactive || !kitchenSummary.nightActive || isNightPassed || guestNight <= 0}
                         onClick={() => {
                           setGuestNight((v) => Math.max(0, v - 1));
                           setIsBookingDirty(true);
@@ -644,7 +666,7 @@ export function DailyMealsView() {
                       <button
                         type="button"
                         aria-label="Increase night guests"
-                        disabled={!kitchenSummary.nightActive || isNightPassed}
+                        disabled={isMemberInactive || !kitchenSummary.nightActive || isNightPassed}
                         onClick={() => {
                           setGuestNight((v) => v + 1);
                           setIsBookingDirty(true);
@@ -664,15 +686,17 @@ export function DailyMealsView() {
 
           <div className="flex items-center justify-between gap-4 bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-4">
             <div className="text-xs text-[#52443E] dark:text-[#D7C3BC]">
-              {myBooking.managerOverrideReason
-                ? `Manager Override Note: ${myBooking.managerOverrideReason}`
-                : myBooking.autoBooked
-                  ? 'Currently filled via Auto-Booking preference.'
-                  : 'Confirmed bookings lock at cutoff and count toward monthly meal units.'}
+              {isMemberInactive
+                ? 'Meal booking is paused while your membership is Inactive.'
+                : myBooking.managerOverrideReason
+                  ? `Manager Override Note: ${myBooking.managerOverrideReason}`
+                  : myBooking.autoBooked
+                    ? 'Currently filled via Auto-Booking preference.'
+                    : 'Confirmed bookings lock at cutoff and count toward monthly meal units.'}
             </div>
             <button
               type="button"
-              disabled={(isLunchPassed && isNightPassed) || isMealActionPending('saveBooking')}
+              disabled={isMemberInactive || (isLunchPassed && isNightPassed) || isMealActionPending('saveBooking')}
               aria-busy={isMealActionPending('saveBooking')}
               onClick={async () => {
                 const res = await runMealAction('saveBooking', () =>
@@ -691,11 +715,13 @@ export function DailyMealsView() {
               }}
               className="px-5 py-2.5 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:bg-[#E8D9D3] dark:disabled:bg-[#352A25] disabled:text-[#52443E] dark:disabled:text-[#A08C86] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              {isMealActionPending('saveBooking')
-                ? 'Saving...'
-                : isLunchPassed && isNightPassed
-                  ? 'Bookings Locked'
-                  : 'Save My Booking'}
+              {isMemberInactive
+                ? 'Account Inactive'
+                : isMealActionPending('saveBooking')
+                  ? 'Saving...'
+                  : isLunchPassed && isNightPassed
+                    ? 'Bookings Locked'
+                    : 'Save My Booking'}
             </button>
           </div>
         </div>
@@ -1364,8 +1390,8 @@ function HistoricalAttendancePanel({
             Historical Attendance Records ({formatReadableDate(date)})
           </h3>
           <p className="text-xs text-[#85736D] dark:text-[#A08C86]">
-            Optional manager override for legacy attendance-based days. Adding attendance switches
-            this date&apos;s billing to confirmed attendance entries.
+            Optional manager override for attendance-based days. Recorded attendance applies per
+            member; other members keep their confirmed bookings.
           </p>
         </div>
       </div>

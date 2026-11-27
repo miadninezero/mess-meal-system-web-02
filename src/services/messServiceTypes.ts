@@ -68,7 +68,17 @@ export interface IMessDataService {
   promoteMemberToManager(messId: string, targetMember: Member): Promise<void>;
   demoteManagerToMember(messId: string, targetMember: Member): Promise<void>;
   resignAsManager(messId: string, currentMemberId: string, successor?: Member | null): Promise<void>;
-  updateMemberStatus(messId: string, memberId: string, isActive: boolean): Promise<void>;
+  updateMemberStatus(
+    messId: string,
+    memberId: string,
+    isActive: boolean,
+    options?: {
+      todayDate?: string;
+      lunchDeadline?: string;
+      nightDeadline?: string;
+      now?: Date;
+    }
+  ): Promise<void>;
 
   updateMealServiceStatus(
     messId: string,
