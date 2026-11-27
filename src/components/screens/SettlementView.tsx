@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Copy, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
 import { UtilityBill } from '../../types/mess';
 import { formatCurrency, formatTimestampDhaka } from '../../utils/dhakaTime';
 import { generateSettlementReportText } from '../../utils/messCalculations';
+import { ConflictAlert } from '../ConflictAlert';
 import { ExportReportButtons } from '../ExportReportButtons';
 
 export function SettlementView() {
@@ -16,6 +17,7 @@ export function SettlementView() {
     summary,
     todayDhakaDate,
     isManager,
+    syncRevision,
     addUtilityBill,
     updateUtilityBill,
     deleteUtilityBill,
@@ -60,6 +62,19 @@ export function SettlementView() {
     setEditingBill(bill);
   };
 
+  useEffect(() => {
+    if (!editingBill) return;
+    const latest = utilityBills.find((u) => u.id === editingBill.id);
+    if (!latest) {
+      setEditingBill(null);
+      return;
+    }
+    setEditingBill(latest);
+    setBillTitle(latest.title);
+    setBillAmount(String(latest.amount));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncRevision]);
+
   const handleSaveBill = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isBillActionPending('saveBill')) return;
@@ -69,16 +84,19 @@ export function SettlementView() {
       setBillError('Please enter a valid title and amount.');
       return;
     }
-    const result = await runBillAction('saveBill', async () => {
+    const res = await runBillAction('saveBill', async () => {
       if (editingBill) {
-        await updateUtilityBill({ ...editingBill, title: billTitle.trim(), amount: num });
+        return updateUtilityBill({ ...editingBill, title: billTitle.trim(), amount: num });
+      }
+      return addUtilityBill(billTitle.trim(), num);
+    });
+    if (res.value) {
+      if (editingBill) {
         setEditingBill(null);
       } else {
-        await addUtilityBill(billTitle.trim(), num);
         setShowAddBillModal(false);
       }
-    });
-    void result;
+    }
   };
 
   return (
@@ -377,6 +395,8 @@ export function SettlementView() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {editingBill && <ConflictAlert compact />}
 
             {billError && (
               <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-[#93000A]/40 border border-rose-200 dark:border-[#93000A] text-xs text-rose-800 dark:text-[#FFDAD6]">

@@ -57,14 +57,15 @@ service cloud.firestore {
 
     function isValidMess(data) {
       return data.keys().hasAll(['name', 'managerUid', 'memberUids', 'activeMonth']) &&
-        data.keys().hasOnly(['name', 'managerUid', 'adminUids', 'memberUids', 'activeMonth', 'lunchBookingDeadline', 'nightBookingDeadline', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['name', 'managerUid', 'adminUids', 'memberUids', 'activeMonth', 'lunchBookingDeadline', 'nightBookingDeadline', 'version', 'createdAt', 'updatedAt']) &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
         data.managerUid is string && data.managerUid.size() <= 128 &&
         data.memberUids is list && data.memberUids.size() >= 1 && data.memberUids.size() <= 200 &&
         (!('adminUids' in data) || (data.adminUids is list && data.adminUids.size() <= 50)) &&
         data.activeMonth is string && data.activeMonth.size() <= 10 &&
         (!('lunchBookingDeadline' in data) || (data.lunchBookingDeadline is string && data.lunchBookingDeadline.size() <= 5)) &&
-        (!('nightBookingDeadline' in data) || (data.nightBookingDeadline is string && data.nightBookingDeadline.size() <= 5));
+        (!('nightBookingDeadline' in data) || (data.nightBookingDeadline is string && data.nightBookingDeadline.size() <= 5)) &&
+        (!('version' in data) || (data.version is int && data.version >= 0));
     }
 
     function isValidMember(data) {
@@ -83,7 +84,7 @@ service cloud.firestore {
 
     function isValidDailyMeal(data) {
       return data.keys().hasAll(['date', 'updatedBy']) &&
-        data.keys().hasOnly(['date', 'isFriday', 'lunchServiceStatus', 'nightServiceStatus', 'cancellationReason', 'bookings', 'attendances', 'lunchFinalOrder', 'nightFinalOrder', 'totalDayUnits', 'totalDayMeals', 'updatedBy', 'updatedAt']) &&
+        data.keys().hasOnly(['date', 'isFriday', 'lunchServiceStatus', 'nightServiceStatus', 'cancellationReason', 'bookings', 'attendances', 'lunchFinalOrder', 'nightFinalOrder', 'totalDayUnits', 'totalDayMeals', 'version', 'updatedBy', 'updatedAt']) &&
         data.date is string && data.date.size() == 10 &&
         data.updatedBy is string && data.updatedBy.size() <= 128 &&
         (!('isFriday' in data) || data.isFriday is bool) &&
@@ -93,43 +94,47 @@ service cloud.firestore {
         (!('bookings' in data) || data.bookings is map) &&
         (!('attendances' in data) || data.attendances is map) &&
         (!('totalDayUnits' in data) || data.totalDayUnits is number) &&
-        (!('totalDayMeals' in data) || data.totalDayMeals is number);
+        (!('totalDayMeals' in data) || data.totalDayMeals is number) &&
+        (!('version' in data) || (data.version is int && data.version >= 0));
     }
 
     function isValidBazaarExpense(data) {
       return data.keys().hasAll(['buyerMemberId', 'buyerName', 'amount', 'itemsDescription', 'category', 'date']) &&
-        data.keys().hasOnly(['buyerMemberId', 'buyerName', 'amount', 'itemsDescription', 'category', 'date', 'createdAt']) &&
+        data.keys().hasOnly(['buyerMemberId', 'buyerName', 'amount', 'itemsDescription', 'category', 'date', 'version', 'createdAt']) &&
         data.buyerMemberId is string && data.buyerMemberId.size() <= 128 &&
         data.buyerName is string && data.buyerName.size() <= 120 &&
         data.amount is number && data.amount >= 0 &&
         data.itemsDescription is string && data.itemsDescription.size() <= 500 &&
         data.category is string && data.category.size() <= 60 &&
-        data.date is string && data.date.size() == 10;
+        data.date is string && data.date.size() == 10 &&
+        (!('version' in data) || (data.version is int && data.version >= 0));
     }
 
     function isValidDeposit(data) {
       return data.keys().hasAll(['memberId', 'memberName', 'amount', 'date', 'paymentMethod']) &&
-        data.keys().hasOnly(['memberId', 'memberName', 'amount', 'date', 'paymentMethod', 'notes', 'recordedBy', 'createdAt']) &&
+        data.keys().hasOnly(['memberId', 'memberName', 'amount', 'date', 'paymentMethod', 'notes', 'recordedBy', 'version', 'createdAt']) &&
         data.memberId is string && data.memberId.size() <= 128 &&
         data.memberName is string && data.memberName.size() <= 120 &&
         data.amount is number && data.amount >= 0 &&
         data.date is string && data.date.size() == 10 &&
         data.paymentMethod is string && data.paymentMethod.size() <= 40 &&
         (!('notes' in data) || (data.notes is string && data.notes.size() <= 300)) &&
-        (!('recordedBy' in data) || (data.recordedBy is string && data.recordedBy.size() <= 128));
+        (!('recordedBy' in data) || (data.recordedBy is string && data.recordedBy.size() <= 128)) &&
+        (!('version' in data) || (data.version is int && data.version >= 0));
     }
 
     function isValidUtilityBill(data) {
       return data.keys().hasAll(['title', 'amount', 'month']) &&
-        data.keys().hasOnly(['title', 'amount', 'month', 'createdAt']) &&
+        data.keys().hasOnly(['title', 'amount', 'month', 'version', 'createdAt']) &&
         data.title is string && data.title.size() > 0 && data.title.size() <= 120 &&
         data.amount is number && data.amount >= 0 &&
-        data.month is string && data.month.size() <= 10;
+        data.month is string && data.month.size() <= 10 &&
+        (!('version' in data) || (data.version is int && data.version >= 0));
     }
 
     function isValidSharedBill(data) {
       return data.keys().hasAll(['title', 'allocationType', 'totalAmount', 'month', 'deadline']) &&
-        data.keys().hasOnly(['title', 'allocationType', 'totalAmount', 'perMemberAmount', 'month', 'deadline', 'notes', 'assignedMemberIds', 'memberShares', 'memberNames', 'payments', 'createdByUid', 'createdByName', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['title', 'allocationType', 'totalAmount', 'perMemberAmount', 'month', 'deadline', 'notes', 'assignedMemberIds', 'memberShares', 'memberNames', 'payments', 'createdByUid', 'createdByName', 'version', 'createdAt', 'updatedAt']) &&
         data.title is string && data.title.size() > 0 && data.title.size() <= 120 &&
         data.allocationType in ['FIXED_PER_MEMBER', 'DIVIDED_EQUALLY', 'CUSTOM_PER_MEMBER'] &&
         data.totalAmount is number && data.totalAmount >= 0 &&
@@ -142,7 +147,8 @@ service cloud.firestore {
         (!('memberNames' in data) || data.memberNames is map) &&
         (!('payments' in data) || data.payments is map) &&
         (!('createdByUid' in data) || (data.createdByUid is string && data.createdByUid.size() <= 128)) &&
-        (!('createdByName' in data) || (data.createdByName is string && data.createdByName.size() <= 120));
+        (!('createdByName' in data) || (data.createdByName is string && data.createdByName.size() <= 120)) &&
+        (!('version' in data) || (data.version is int && data.version >= 0));
     }
 
     function isValidNotification(data) {
@@ -222,7 +228,7 @@ service cloud.firestore {
         allow create: if isSignedIn() && isValidId(messId) && isValidId(dateId) && isMessMember(messId) && isValidDailyMeal(incoming());
         allow update: if isSignedIn() && isValidId(messId) && isValidId(dateId) && isValidDailyMeal(incoming()) && (
           isMessManager(messId) ||
-          (isMessMember(messId) && incoming().diff(existing()).affectedKeys().hasOnly(['bookings', 'updatedBy', 'updatedAt']))
+          (isMessMember(messId) && incoming().diff(existing()).affectedKeys().hasOnly(['bookings', 'updatedBy', 'updatedAt', 'version']))
         );
         allow delete: if isValidId(messId) && isValidId(dateId) && isMessManager(messId);
       }

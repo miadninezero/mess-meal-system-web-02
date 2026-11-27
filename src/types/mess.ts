@@ -49,6 +49,7 @@ export interface Mess {
   activeMonth: string; // YYYY-MM
   lunchBookingDeadline: string; // HH:mm 24h Asia/Dhaka
   nightBookingDeadline: string; // HH:mm 24h Asia/Dhaka
+  version?: number;
   createdAt?: number;
   updatedAt?: number;
 }
@@ -110,6 +111,7 @@ export interface DailyMealRecord {
   nightFinalOrder?: FinalOrderSummary | null;
   totalDayUnits: number;
   totalDayMeals: number;
+  version?: number;
   updatedBy: string;
   updatedAt?: number;
 }
@@ -134,6 +136,7 @@ export interface BazaarExpense {
   itemsDescription: string;
   category: string;
   date: string; // YYYY-MM-DD
+  version?: number;
   createdAt?: number;
 }
 
@@ -146,6 +149,7 @@ export interface Deposit {
   paymentMethod: string;
   notes: string;
   recordedBy: string;
+  version?: number;
   createdAt?: number;
 }
 
@@ -154,6 +158,7 @@ export interface UtilityBill {
   title: string;
   amount: number;
   month: string; // YYYY-MM
+  version?: number;
   createdAt?: number;
 }
 
@@ -185,6 +190,7 @@ export interface SharedBill {
   payments: Record<string, BillPaymentRecord>;
   createdByUid: string;
   createdByName: string;
+  version?: number;
   createdAt?: number;
   updatedAt?: number;
 }

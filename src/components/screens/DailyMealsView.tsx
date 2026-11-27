@@ -32,6 +32,8 @@ import {
   calculateBookingUnits,
   resolveEffectiveBooking,
 } from '../../utils/messCalculations';
+import { normalizeVersion } from '../../utils/optimisticConcurrency';
+import { ConflictAlert } from '../ConflictAlert';
 
 type MealsSubTab = 'my_booking' | 'kitchen' | 'attendance';
 type RosterFilter = 'all' | 'lunch' | 'night' | 'not_eating';
@@ -47,6 +49,7 @@ export function DailyMealsView() {
     isManager,
     currentMember,
     kitchenSummary,
+    syncRevision,
     setSelectedDate,
     configureDeadlines,
     updateMealServiceStatus,
@@ -66,6 +69,7 @@ export function DailyMealsView() {
   const { run: runMealAction, isPending: isMealActionPending } = useAsyncAction();
 
   const currentRecord = dailyMeals.find((r) => r.id === selectedDate || r.date === selectedDate);
+  const recordVersion = currentRecord ? normalizeVersion(currentRecord.version) : null;
   const isFri = currentRecord?.isFriday ?? checkIsFriday(selectedDate);
   const lunchDeadline = currentMess?.lunchBookingDeadline || '09:00';
   const nightDeadline = currentMess?.nightBookingDeadline || '17:00';
@@ -84,7 +88,7 @@ export function DailyMealsView() {
         })
       : rawBooking ?? defaultBookingEntry();
 
-  // My Booking form state
+  // My Booking form state & base version tracking
   const [statusLunch, setStatusLunch] = useState<'BOOKED' | 'CANCELLED'>(
     myBooking.statusLunch === 'BOOKED' ? 'BOOKED' : 'CANCELLED'
   );
@@ -93,14 +97,25 @@ export function DailyMealsView() {
   );
   const [guestLunch, setGuestLunch] = useState<number>(myBooking.guestLunch);
   const [guestNight, setGuestNight] = useState<number>(myBooking.guestNight);
+  const [isBookingDirty, setIsBookingDirty] = useState(false);
+  const [bookingBaseVersion, setBookingBaseVersion] = useState<number | null>(recordVersion);
 
   useEffect(() => {
+    setIsBookingDirty(false);
+  }, [selectedDate, syncRevision]);
+
+  useEffect(() => {
+    if (isBookingDirty) return;
     setStatusLunch(myBooking.statusLunch === 'BOOKED' ? 'BOOKED' : 'CANCELLED');
     setStatusNight(myBooking.statusNight === 'BOOKED' ? 'BOOKED' : 'CANCELLED');
     setGuestLunch(myBooking.guestLunch);
     setGuestNight(myBooking.guestNight);
+    setBookingBaseVersion(recordVersion);
   }, [
+    isBookingDirty,
     selectedDate,
+    syncRevision,
+    recordVersion,
     myBooking.statusLunch,
     myBooking.statusNight,
     myBooking.guestLunch,
@@ -110,6 +125,15 @@ export function DailyMealsView() {
   // Deadline dialog state
   const [editLunchDeadline, setEditLunchDeadline] = useState(lunchDeadline);
   const [editNightDeadline, setEditNightDeadline] = useState(nightDeadline);
+  const [deadlinesBaseVersion, setDeadlinesBaseVersion] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!showDeadlineModal) return;
+    setEditLunchDeadline(lunchDeadline);
+    setEditNightDeadline(nightDeadline);
+    setDeadlinesBaseVersion(currentMess ? normalizeVersion(currentMess.version) : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncRevision]);
 
   // Service status dialog state
   const [editLunchService, setEditLunchService] = useState<MealServiceStatus>(
@@ -121,6 +145,16 @@ export function DailyMealsView() {
   const [editCancelReason, setEditCancelReason] = useState(
     currentRecord?.cancellationReason ?? ''
   );
+  const [serviceBaseVersion, setServiceBaseVersion] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!showServiceModal) return;
+    setEditLunchService(currentRecord?.lunchServiceStatus ?? 'ACTIVE');
+    setEditNightService(currentRecord?.nightServiceStatus ?? 'ACTIVE');
+    setEditCancelReason(currentRecord?.cancellationReason ?? '');
+    setServiceBaseVersion(recordVersion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncRevision]);
 
   // Override dialog state
   const [ovrLunch, setOvrLunch] = useState<'BOOKED' | 'CANCELLED'>('BOOKED');
@@ -128,6 +162,7 @@ export function DailyMealsView() {
   const [ovrGuestLunch, setOvrGuestLunch] = useState(0);
   const [ovrGuestNight, setOvrGuestNight] = useState(0);
   const [ovrReason, setOvrReason] = useState('');
+  const [overrideBaseVersion, setOverrideBaseVersion] = useState<number | null>(null);
 
   const openOverrideFor = (member: Member) => {
     const explicit = currentRecord?.bookings?.[member.id];
@@ -142,8 +177,27 @@ export function DailyMealsView() {
     setOvrGuestLunch(effective.guestLunch);
     setOvrGuestNight(effective.guestNight);
     setOvrReason(effective.managerOverrideReason || '');
+    setOverrideBaseVersion(recordVersion);
     setOverrideTarget(member);
   };
+
+  useEffect(() => {
+    if (!overrideTarget) return;
+    const explicit = currentRecord?.bookings?.[overrideTarget.id];
+    const effective = resolveEffectiveBooking({
+      member: overrideTarget,
+      explicitBooking: explicit,
+      date: selectedDate,
+      isFriday: isFri,
+    });
+    setOvrLunch(effective.statusLunch === 'BOOKED' ? 'BOOKED' : 'CANCELLED');
+    setOvrNight(effective.statusNight === 'BOOKED' ? 'BOOKED' : 'CANCELLED');
+    setOvrGuestLunch(effective.guestLunch);
+    setOvrGuestNight(effective.guestNight);
+    setOvrReason(effective.managerOverrideReason || '');
+    setOverrideBaseVersion(recordVersion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncRevision]);
 
   // Roster members filtered
   const rosterEntries = members.map((member) => {
@@ -237,6 +291,7 @@ export function DailyMealsView() {
               onClick={() => {
                 setEditLunchDeadline(lunchDeadline);
                 setEditNightDeadline(nightDeadline);
+                setDeadlinesBaseVersion(currentMess ? normalizeVersion(currentMess.version) : null);
                 setShowDeadlineModal(true);
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25] rounded-lg whitespace-nowrap cursor-pointer"
@@ -250,6 +305,7 @@ export function DailyMealsView() {
                 setEditLunchService(currentRecord?.lunchServiceStatus ?? 'ACTIVE');
                 setEditNightService(currentRecord?.nightServiceStatus ?? 'ACTIVE');
                 setEditCancelReason(currentRecord?.cancellationReason ?? '');
+                setServiceBaseVersion(recordVersion);
                 setShowServiceModal(true);
               }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] border border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25] rounded-lg whitespace-nowrap cursor-pointer"
@@ -427,7 +483,10 @@ export function DailyMealsView() {
                 <button
                   type="button"
                   disabled={!kitchenSummary.lunchActive || isLunchPassed}
-                  onClick={() => setStatusLunch('BOOKED')}
+                  onClick={() => {
+                    setStatusLunch('BOOKED');
+                    setIsBookingDirty(true);
+                  }}
                   className={`py-2.5 text-sm font-semibold rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
                     statusLunch === 'BOOKED'
                       ? 'bg-[#0D7351] text-white border-[#0D7351] dark:bg-[#89D6B7] dark:text-[#003825] dark:border-[#89D6B7]'
@@ -439,7 +498,10 @@ export function DailyMealsView() {
                 <button
                   type="button"
                   disabled={!kitchenSummary.lunchActive || isLunchPassed}
-                  onClick={() => setStatusLunch('CANCELLED')}
+                  onClick={() => {
+                    setStatusLunch('CANCELLED');
+                    setIsBookingDirty(true);
+                  }}
                   className={`py-2.5 text-sm font-semibold rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
                     statusLunch === 'CANCELLED'
                       ? 'bg-rose-700 text-white border-rose-700'
@@ -460,7 +522,10 @@ export function DailyMealsView() {
                     type="button"
                     aria-label="Decrease lunch guests"
                     disabled={!kitchenSummary.lunchActive || isLunchPassed || guestLunch <= 0}
-                    onClick={() => setGuestLunch((v) => Math.max(0, v - 1))}
+                    onClick={() => {
+                      setGuestLunch((v) => Math.max(0, v - 1));
+                      setIsBookingDirty(true);
+                    }}
                     className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25] text-[#201A17] dark:text-[#EDE0DB] disabled:opacity-40 cursor-pointer"
                   >
                     <Minus className="w-4 h-4" />
@@ -472,7 +537,10 @@ export function DailyMealsView() {
                     type="button"
                     aria-label="Increase lunch guests"
                     disabled={!kitchenSummary.lunchActive || isLunchPassed}
-                    onClick={() => setGuestLunch((v) => v + 1)}
+                    onClick={() => {
+                      setGuestLunch((v) => v + 1);
+                      setIsBookingDirty(true);
+                    }}
                     className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25] text-[#201A17] dark:text-[#EDE0DB] disabled:opacity-40 cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
@@ -523,7 +591,10 @@ export function DailyMealsView() {
                     <button
                       type="button"
                       disabled={!kitchenSummary.nightActive || isNightPassed}
-                      onClick={() => setStatusNight('BOOKED')}
+                      onClick={() => {
+                        setStatusNight('BOOKED');
+                        setIsBookingDirty(true);
+                      }}
                       className={`py-2.5 text-sm font-semibold rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
                         statusNight === 'BOOKED'
                           ? 'bg-[#0D7351] text-white border-[#0D7351] dark:bg-[#89D6B7] dark:text-[#003825] dark:border-[#89D6B7]'
@@ -535,7 +606,10 @@ export function DailyMealsView() {
                     <button
                       type="button"
                       disabled={!kitchenSummary.nightActive || isNightPassed}
-                      onClick={() => setStatusNight('CANCELLED')}
+                      onClick={() => {
+                        setStatusNight('CANCELLED');
+                        setIsBookingDirty(true);
+                      }}
                       className={`py-2.5 text-sm font-semibold rounded-lg border transition-colors cursor-pointer disabled:opacity-50 ${
                         statusNight === 'CANCELLED'
                           ? 'bg-rose-700 text-white border-rose-700'
@@ -556,7 +630,10 @@ export function DailyMealsView() {
                         type="button"
                         aria-label="Decrease night guests"
                         disabled={!kitchenSummary.nightActive || isNightPassed || guestNight <= 0}
-                        onClick={() => setGuestNight((v) => Math.max(0, v - 1))}
+                        onClick={() => {
+                          setGuestNight((v) => Math.max(0, v - 1));
+                          setIsBookingDirty(true);
+                        }}
                         className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25] text-[#201A17] dark:text-[#EDE0DB] disabled:opacity-40 cursor-pointer"
                       >
                         <Minus className="w-4 h-4" />
@@ -568,7 +645,10 @@ export function DailyMealsView() {
                         type="button"
                         aria-label="Increase night guests"
                         disabled={!kitchenSummary.nightActive || isNightPassed}
-                        onClick={() => setGuestNight((v) => v + 1)}
+                        onClick={() => {
+                          setGuestNight((v) => v + 1);
+                          setIsBookingDirty(true);
+                        }}
                         className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#85736D]/50 dark:border-[#52443E] hover:bg-[#F4DFD7]/35 dark:hover:bg-[#352A25] text-[#201A17] dark:text-[#EDE0DB] disabled:opacity-40 cursor-pointer"
                       >
                         <Plus className="w-4 h-4" />
@@ -579,6 +659,8 @@ export function DailyMealsView() {
               )}
             </div>
           </div>
+
+          <ConflictAlert compact />
 
           <div className="flex items-center justify-between gap-4 bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-4">
             <div className="text-xs text-[#52443E] dark:text-[#D7C3BC]">
@@ -592,11 +674,21 @@ export function DailyMealsView() {
               type="button"
               disabled={(isLunchPassed && isNightPassed) || isMealActionPending('saveBooking')}
               aria-busy={isMealActionPending('saveBooking')}
-              onClick={() =>
-                runMealAction('saveBooking', () =>
-                  saveMyBooking(selectedDate, statusLunch, statusNight, guestLunch, guestNight)
-                )
-              }
+              onClick={async () => {
+                const res = await runMealAction('saveBooking', () =>
+                  saveMyBooking(
+                    selectedDate,
+                    statusLunch,
+                    statusNight,
+                    guestLunch,
+                    guestNight,
+                    bookingBaseVersion
+                  )
+                );
+                if (res.value) {
+                  setIsBookingDirty(false);
+                }
+              }}
               className="px-5 py-2.5 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:bg-[#E8D9D3] dark:disabled:bg-[#352A25] disabled:text-[#52443E] dark:disabled:text-[#A08C86] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               {isMealActionPending('saveBooking')
@@ -612,6 +704,7 @@ export function DailyMealsView() {
       {/* TAB 2: KITCHEN & BOOKINGS */}
       {subTab === 'kitchen' && (
         <div className="space-y-6">
+          <ConflictAlert compact />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Lunch Kitchen Summary */}
             <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-6 space-y-4">
@@ -651,7 +744,9 @@ export function DailyMealsView() {
                   type="button"
                   disabled={isMealActionPending('lockLunch')}
                   onClick={() =>
-                    runMealAction('lockLunch', () => saveFinalOrderSummary(selectedDate, 'LUNCH'))
+                    runMealAction('lockLunch', () =>
+                      saveFinalOrderSummary(selectedDate, 'LUNCH', recordVersion)
+                    )
                   }
                   className="w-full py-2 px-3 text-xs font-semibold text-[#201A17] dark:text-[#EDE0DB] bg-[#F4DFD7]/60 dark:bg-[#352A25] hover:bg-[#F4DFD7] dark:hover:bg-[#463832] disabled:opacity-60 rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
                 >
@@ -716,7 +811,9 @@ export function DailyMealsView() {
                       type="button"
                       disabled={isMealActionPending('lockNight')}
                       onClick={() =>
-                        runMealAction('lockNight', () => saveFinalOrderSummary(selectedDate, 'NIGHT'))
+                        runMealAction('lockNight', () =>
+                          saveFinalOrderSummary(selectedDate, 'NIGHT', recordVersion)
+                        )
                       }
                       className="w-full py-2 px-3 text-xs font-semibold text-[#201A17] dark:text-[#EDE0DB] bg-[#F4DFD7]/60 dark:bg-[#352A25] hover:bg-[#F4DFD7] dark:hover:bg-[#463832] disabled:opacity-60 rounded-lg inline-flex items-center justify-center gap-1.5 cursor-pointer"
                     >
@@ -875,6 +972,8 @@ export function DailyMealsView() {
           lunchStatus={currentRecord?.lunchServiceStatus ?? 'ACTIVE'}
           nightStatus={currentRecord?.nightServiceStatus ?? 'ACTIVE'}
           attendances={currentRecord?.attendances ?? {}}
+          recordVersion={recordVersion}
+          syncRevision={syncRevision}
           onSaveAttendance={saveConfirmedAttendance}
         />
       )}
@@ -896,6 +995,7 @@ export function DailyMealsView() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <ConflictAlert compact />
             <div className="space-y-3">
               <div>
                 <label htmlFor="lunch-cutoff" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
@@ -936,10 +1036,12 @@ export function DailyMealsView() {
                 disabled={isMealActionPending('deadlines')}
                 aria-busy={isMealActionPending('deadlines')}
                 onClick={async () => {
-                  await runMealAction('deadlines', () =>
-                    configureDeadlines(editLunchDeadline, editNightDeadline)
+                  const res = await runMealAction('deadlines', () =>
+                    configureDeadlines(editLunchDeadline, editNightDeadline, deadlinesBaseVersion)
                   );
-                  setShowDeadlineModal(false);
+                  if (res.value) {
+                    setShowDeadlineModal(false);
+                  }
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
@@ -967,6 +1069,7 @@ export function DailyMealsView() {
                 <X className="w-4 h-4" />
               </button>
             </div>
+            <ConflictAlert compact />
             <div className="space-y-3">
               <div>
                 <label htmlFor="lunch-service-select" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
@@ -1026,15 +1129,18 @@ export function DailyMealsView() {
                 disabled={isMealActionPending('serviceStatus')}
                 aria-busy={isMealActionPending('serviceStatus')}
                 onClick={async () => {
-                  await runMealAction('serviceStatus', () =>
+                  const res = await runMealAction('serviceStatus', () =>
                     updateMealServiceStatus(
                       selectedDate,
                       editLunchService,
                       isFri ? 'CANCELLED' : editNightService,
-                      editCancelReason
+                      editCancelReason,
+                      serviceBaseVersion
                     )
                   );
-                  setShowServiceModal(false);
+                  if (res.value) {
+                    setShowServiceModal(false);
+                  }
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
@@ -1066,6 +1172,7 @@ export function DailyMealsView() {
               </button>
             </div>
 
+            <ConflictAlert compact />
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -1160,7 +1267,7 @@ export function DailyMealsView() {
                 aria-busy={isMealActionPending('override')}
                 onClick={async () => {
                   const target = overrideTarget;
-                  await runMealAction('override', () =>
+                  const res = await runMealAction('override', () =>
                     managerOverrideBooking({
                       date: selectedDate,
                       memberId: target.id,
@@ -1170,9 +1277,12 @@ export function DailyMealsView() {
                       guestLunch: ovrGuestLunch,
                       guestNight: isFri ? 0 : ovrGuestNight,
                       reason: ovrReason,
+                      expectedVersion: overrideBaseVersion,
                     })
                   );
-                  setOverrideTarget(null);
+                  if (res.value) {
+                    setOverrideTarget(null);
+                  }
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-50 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
@@ -1193,6 +1303,8 @@ function HistoricalAttendancePanel({
   lunchStatus,
   nightStatus,
   attendances,
+  recordVersion,
+  syncRevision,
   onSaveAttendance,
 }: {
   date: string;
@@ -1201,6 +1313,8 @@ function HistoricalAttendancePanel({
   lunchStatus: MealServiceStatus;
   nightStatus: MealServiceStatus;
   attendances: Record<string, MealAttendanceEntry>;
+  recordVersion: number | null;
+  syncRevision: number;
   onSaveAttendance: (params: {
     date: string;
     memberId: string;
@@ -1209,13 +1323,15 @@ function HistoricalAttendancePanel({
     attendedNight: boolean;
     guestLunchAttended: number;
     guestNightAttended: number;
-  }) => Promise<void>;
+    expectedVersion?: number | null;
+  }) => Promise<boolean>;
 }) {
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [attLunch, setAttLunch] = useState(false);
   const [attNight, setAttNight] = useState(false);
   const [attGL, setAttGL] = useState(0);
   const [attGN, setAttGN] = useState(0);
+  const [attendanceBaseVersion, setAttendanceBaseVersion] = useState<number | null>(null);
   const { run: runAttendanceAction, isPending: isAttendancePending } = useAsyncAction();
 
   const openEditor = (m: Member) => {
@@ -1224,8 +1340,20 @@ function HistoricalAttendancePanel({
     setAttNight(existing?.attendedNight ?? false);
     setAttGL(existing?.guestLunchAttended ?? 0);
     setAttGN(existing?.guestNightAttended ?? 0);
+    setAttendanceBaseVersion(recordVersion);
     setEditingMember(m);
   };
+
+  useEffect(() => {
+    if (!editingMember) return;
+    const existing = attendances[editingMember.id];
+    setAttLunch(existing?.attendedLunch ?? false);
+    setAttNight(existing?.attendedNight ?? false);
+    setAttGL(existing?.guestLunchAttended ?? 0);
+    setAttGN(existing?.guestNightAttended ?? 0);
+    setAttendanceBaseVersion(recordVersion);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncRevision]);
 
   return (
     <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl p-6 space-y-4">
@@ -1304,6 +1432,7 @@ function HistoricalAttendancePanel({
             <h4 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">
               Confirm Attendance: {editingMember.displayName}
             </h4>
+            <ConflictAlert compact />
             <div className="space-y-3 text-sm text-[#201A17] dark:text-[#EDE0DB]">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -1368,7 +1497,7 @@ function HistoricalAttendancePanel({
                 aria-busy={isAttendancePending('saveAttendance')}
                 onClick={async () => {
                   const m = editingMember;
-                  await runAttendanceAction('saveAttendance', () =>
+                  const res = await runAttendanceAction('saveAttendance', () =>
                     onSaveAttendance({
                       date,
                       memberId: m.id,
@@ -1377,9 +1506,12 @@ function HistoricalAttendancePanel({
                       attendedNight: attNight,
                       guestLunchAttended: attGL,
                       guestNightAttended: attGN,
+                      expectedVersion: attendanceBaseVersion,
                     })
                   );
-                  setEditingMember(null);
+                  if (res.value) {
+                    setEditingMember(null);
+                  }
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
@@ -15,6 +15,8 @@ import {
   getSharedBillStats,
 } from '../../types/mess';
 import { formatCurrency, formatReadableDate, shiftDate } from '../../utils/dhakaTime';
+import { normalizeVersion } from '../../utils/optimisticConcurrency';
+import { ConflictAlert } from '../ConflictAlert';
 
 export function SharedBillsView() {
   const {
@@ -25,6 +27,7 @@ export function SharedBillsView() {
     todayDhakaDate,
     isManager,
     currentMember,
+    syncRevision,
     createSharedBill,
     updateSharedBill,
     deleteSharedBill,
@@ -112,33 +115,37 @@ export function SharedBillsView() {
         setFormError('Total custom bill amount must be greater than 0.');
         return;
       }
-      await runSharedBillAction('createBill', async () => {
-        await createSharedBill({
+      const res = await runSharedBillAction('createBill', () =>
+        createSharedBill({
           title: title.trim(),
           allocationType,
           amountInput: sum,
           deadline,
           notes,
           customShares: parsedShares,
-        });
+        })
+      );
+      if (res.value) {
         setShowCreateModal(false);
-      });
+      }
     } else {
       const num = Number.parseFloat(amountInput);
       if (Number.isNaN(num) || num <= 0) {
         setFormError('Please enter a valid positive amount.');
         return;
       }
-      await runSharedBillAction('createBill', async () => {
-        await createSharedBill({
+      const res = await runSharedBillAction('createBill', () =>
+        createSharedBill({
           title: title.trim(),
           allocationType,
           amountInput: num,
           deadline,
           notes,
-        });
+        })
+      );
+      if (res.value) {
         setShowCreateModal(false);
-      });
+      }
     }
   };
 
@@ -166,8 +173,8 @@ export function SharedBillsView() {
         updatedShares[id] = Math.max(0, Number.parseFloat(editCustomShares[id] || '0') || 0);
       }
     }
-    await runSharedBillAction('editBill', async () => {
-      await updateSharedBill(
+    const res = await runSharedBillAction('editBill', () =>
+      updateSharedBill(
         {
           ...editingBill,
           title: editTitle.trim(),
@@ -175,9 +182,11 @@ export function SharedBillsView() {
           notes: editNotes.trim(),
         },
         updatedShares
-      );
+      )
+    );
+    if (res.value) {
       setEditingBill(null);
-    });
+    }
   };
 
   const openPaymentModal = (bill: SharedBill, memberId: string) => {
@@ -190,6 +199,53 @@ export function SharedBillsView() {
     setPayNotes(bill.payments[memberId]?.notes || '');
     setPaymentTarget({ bill, memberId, memberName: name, assignedShare: share });
   };
+
+  useEffect(() => {
+    if (editingBill) {
+      const latest = sharedBills.find((b) => b.id === editingBill.id);
+      if (!latest) {
+        setEditingBill(null);
+      } else {
+        setEditingBill(latest);
+        setEditTitle(latest.title);
+        setEditDeadline(latest.deadline);
+        setEditNotes(latest.notes);
+        const map: Record<string, string> = {};
+        latest.assignedMemberIds.forEach((id) => {
+          map[id] = String(getMemberShare(latest, id));
+        });
+        setEditCustomShares(map);
+      }
+    }
+    if (paymentTarget) {
+      const latest = sharedBills.find((b) => b.id === paymentTarget.bill.id);
+      if (!latest) {
+        setPaymentTarget(null);
+      } else {
+        const share = getMemberShare(latest, paymentTarget.memberId);
+        const paid = getMemberPaid(latest, paymentTarget.memberId);
+        const name =
+          latest.memberNames[paymentTarget.memberId] ||
+          members.find((m) => m.id === paymentTarget.memberId)?.displayName ||
+          paymentTarget.memberName;
+        setPayAmount(String(paid > 0 ? paid : share));
+        setPayMethod(latest.payments[paymentTarget.memberId]?.paymentMethod || 'Cash');
+        setPayDate(latest.payments[paymentTarget.memberId]?.paymentDate || todayDhakaDate);
+        setPayNotes(latest.payments[paymentTarget.memberId]?.notes || '');
+        setPaymentTarget({
+          bill: latest,
+          memberId: paymentTarget.memberId,
+          memberName: name,
+          assignedShare: share,
+        });
+      }
+    }
+    if (deletingBill) {
+      const latest = sharedBills.find((b) => b.id === deletingBill.id);
+      setDeletingBill(latest ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncRevision]);
 
   return (
     <div className="space-y-6">
@@ -629,6 +685,7 @@ export function SharedBillsView() {
             </div>
 
             <div className="p-6 overflow-y-auto space-y-4">
+              <ConflictAlert compact />
               <div>
                 <label htmlFor="eb-title" className="block text-xs font-medium text-[#52443E] dark:text-[#D7C3BC] mb-1">
                   Bill Title
@@ -745,6 +802,8 @@ export function SharedBillsView() {
               </button>
             </div>
 
+            <ConflictAlert compact />
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -841,8 +900,8 @@ export function SharedBillsView() {
                 onClick={async () => {
                   const target = paymentTarget;
                   const num = Math.max(0, Number.parseFloat(payAmount) || 0);
-                  await runSharedBillAction('recordPayment', async () => {
-                    await recordBillPayment({
+                  const res = await runSharedBillAction('recordPayment', () =>
+                    recordBillPayment({
                       billId: target.bill.id,
                       memberId: target.memberId,
                       memberName: target.memberName,
@@ -851,9 +910,12 @@ export function SharedBillsView() {
                       paymentMethod: payMethod,
                       paymentDate: payDate,
                       notes: payNotes.trim(),
-                    });
+                      expectedVersion: normalizeVersion(target.bill.version),
+                    })
+                  );
+                  if (res.value) {
                     setPaymentTarget(null);
-                  });
+                  }
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-[#C05621] hover:bg-[#A3471B] dark:bg-[#FFB59A] dark:hover:bg-[#F2A386] dark:text-[#5F1B00] disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
@@ -869,6 +931,7 @@ export function SharedBillsView() {
         <div role="dialog" aria-modal="true" className="fixed inset-0 z-50 bg-[#201A17]/40 dark:bg-black/65 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#221B18] border border-[#E8D9D3] dark:border-[#3E322D] rounded-xl max-w-md w-full p-6 space-y-4">
             <h3 className="font-display font-bold text-[#201A17] dark:text-[#EDE0DB]">Delete Shared Bill?</h3>
+            <ConflictAlert compact />
             <p className="text-sm text-[#52443E] dark:text-[#D7C3BC]">
               Delete <strong>{deletingBill.title}</strong> ({formatCurrency(deletingBill.totalAmount)})?
               All associated member payment records for this bill will be removed.
@@ -888,8 +951,10 @@ export function SharedBillsView() {
                 aria-busy={isSharedBillActionPending('deleteBill')}
                 onClick={async () => {
                   const target = deletingBill;
-                  await runSharedBillAction('deleteBill', () => deleteSharedBill(target));
-                  setDeletingBill(null);
+                  const res = await runSharedBillAction('deleteBill', () => deleteSharedBill(target));
+                  if (res.value) {
+                    setDeletingBill(null);
+                  }
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >

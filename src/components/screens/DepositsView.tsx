@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
 import { Deposit, PAYMENT_METHODS } from '../../types/mess';
 import { formatCurrency, formatReadableDate, shiftDate } from '../../utils/dhakaTime';
+import { ConflictAlert } from '../ConflictAlert';
 
 export function DepositsView() {
   const {
@@ -12,6 +13,7 @@ export function DepositsView() {
     summary,
     todayDhakaDate,
     isManager,
+    syncRevision,
     addDeposit,
     updateDeposit,
     deleteDeposit,
@@ -49,6 +51,22 @@ export function DepositsView() {
     setEditingDeposit(dep);
   };
 
+  useEffect(() => {
+    if (!editingDeposit) return;
+    const latest = deposits.find((dep) => dep.id === editingDeposit.id);
+    if (!latest) {
+      setEditingDeposit(null);
+      return;
+    }
+    setEditingDeposit(latest);
+    setMemberId(latest.memberId);
+    setAmount(String(latest.amount));
+    setDate(latest.date || todayDhakaDate);
+    setPaymentMethod(latest.paymentMethod || 'Cash');
+    setNotes(latest.notes || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncRevision]);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isDepositActionPending('saveDeposit')) return;
@@ -60,9 +78,9 @@ export function DepositsView() {
     }
     const resolvedMemberId = memberId || members[0]?.id || '';
     const memberName = members.find((m) => m.id === resolvedMemberId)?.displayName || 'Member';
-    await runDepositAction('saveDeposit', async () => {
+    const res = await runDepositAction('saveDeposit', async () => {
       if (editingDeposit) {
-        await updateDeposit({
+        return updateDeposit({
           ...editingDeposit,
           memberId: resolvedMemberId,
           memberName,
@@ -71,19 +89,24 @@ export function DepositsView() {
           paymentMethod,
           notes: notes.trim(),
         });
+      }
+      return addDeposit({
+        memberId: resolvedMemberId,
+        memberName,
+        amount: num,
+        date,
+        paymentMethod,
+        notes: notes.trim(),
+      });
+    });
+
+    if (res.value) {
+      if (editingDeposit) {
         setEditingDeposit(null);
       } else {
-        await addDeposit({
-          memberId: resolvedMemberId,
-          memberName,
-          amount: num,
-          date,
-          paymentMethod,
-          notes: notes.trim(),
-        });
         setShowAddModal(false);
       }
-    });
+    }
   };
 
   return (
@@ -250,6 +273,8 @@ export function DepositsView() {
               </button>
             </div>
 
+            {editingDeposit && <ConflictAlert compact />}
+
             {formError && (
               <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-[#93000A]/40 border border-rose-200 dark:border-[#93000A] text-xs text-rose-800 dark:text-[#FFDAD6]">
                 {formError}
@@ -415,8 +440,10 @@ export function DepositsView() {
                 aria-busy={isDepositActionPending('deleteDeposit')}
                 onClick={async () => {
                   const target = deletingDeposit;
-                  await runDepositAction('deleteDeposit', () => deleteDeposit(target));
-                  setDeletingDeposit(null);
+                  const res = await runDepositAction('deleteDeposit', () => deleteDeposit(target));
+                  if (res.value) {
+                    setDeletingDeposit(null);
+                  }
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >

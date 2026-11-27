@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useMess } from '../../context/MessContext';
 import { BAZAAR_CATEGORIES, BazaarExpense } from '../../types/mess';
 import { formatCurrency, formatReadableDate, shiftDate } from '../../utils/dhakaTime';
+import { ConflictAlert } from '../ConflictAlert';
 
 export function BazaarLogView() {
   const {
@@ -14,6 +15,7 @@ export function BazaarLogView() {
     todayDhakaDate,
     isManager,
     currentMember,
+    syncRevision,
     addBazaarExpense,
     updateBazaarExpense,
     deleteBazaarExpense,
@@ -55,6 +57,22 @@ export function BazaarLogView() {
     setEditingExpense(exp);
   };
 
+  useEffect(() => {
+    if (!editingExpense) return;
+    const latest = bazaarExpenses.find((exp) => exp.id === editingExpense.id);
+    if (!latest) {
+      setEditingExpense(null);
+      return;
+    }
+    setEditingExpense(latest);
+    setBuyerMemberId(latest.buyerMemberId);
+    setAmount(String(latest.amount));
+    setItemsDescription(latest.itemsDescription);
+    setCategory(latest.category || 'Groceries');
+    setDate(latest.date || todayDhakaDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncRevision]);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isBazaarActionPending('saveBazaar')) return;
@@ -72,9 +90,9 @@ export function BazaarLogView() {
     const buyerObj = members.find((m) => m.id === resolvedBuyerId);
     const buyerName = buyerObj?.displayName || authUser?.displayName || 'Member';
 
-    await runBazaarAction('saveBazaar', async () => {
+    const res = await runBazaarAction('saveBazaar', async () => {
       if (editingExpense) {
-        await updateBazaarExpense({
+        return updateBazaarExpense({
           ...editingExpense,
           buyerMemberId: resolvedBuyerId,
           buyerName,
@@ -83,19 +101,24 @@ export function BazaarLogView() {
           category,
           date,
         });
+      }
+      return addBazaarExpense({
+        buyerMemberId: resolvedBuyerId,
+        buyerName,
+        amount: numAmount,
+        itemsDescription: itemsDescription.trim(),
+        category,
+        date,
+      });
+    });
+
+    if (res.value) {
+      if (editingExpense) {
         setEditingExpense(null);
       } else {
-        await addBazaarExpense({
-          buyerMemberId: resolvedBuyerId,
-          buyerName,
-          amount: numAmount,
-          itemsDescription: itemsDescription.trim(),
-          category,
-          date,
-        });
         setShowAddModal(false);
       }
-    });
+    }
   };
 
   const filteredExpenses =
@@ -269,6 +292,8 @@ export function BazaarLogView() {
               </button>
             </div>
 
+            {editingExpense && <ConflictAlert compact />}
+
             {formError && (
               <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-[#93000A]/40 border border-rose-200 dark:border-[#93000A] text-xs text-rose-800 dark:text-[#FFDAD6]">
                 {formError}
@@ -430,8 +455,10 @@ export function BazaarLogView() {
                 aria-busy={isBazaarActionPending('deleteBazaar')}
                 onClick={async () => {
                   const id = deletingExpense.id;
-                  await runBazaarAction('deleteBazaar', () => deleteBazaarExpense(id));
-                  setDeletingExpense(null);
+                  const res = await runBazaarAction('deleteBazaar', () => deleteBazaarExpense(id));
+                  if (res.value) {
+                    setDeletingExpense(null);
+                  }
                 }}
                 className="px-4 py-2 text-sm font-semibold text-white bg-rose-700 hover:bg-rose-800 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >

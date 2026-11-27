@@ -21,6 +21,7 @@ import { useAsyncAction } from '../hooks/useAsyncAction';
 import { NavTab, useMess } from '../context/MessContext';
 import { Member } from '../types/mess';
 import { formatCurrency, formatTimestampDhaka } from '../utils/dhakaTime';
+import { ConflictAlert } from './ConflictAlert';
 import { DemoWalkthrough } from './DemoWalkthrough';
 import { MessLogo } from './MessLogo';
 import { ThemeToggle } from './ThemeToggle';
@@ -60,6 +61,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     isWalkthroughOpen,
     signOut,
     uiMessage,
+    conflictState,
     clearUiMessage,
     showUiMessage,
   } = useMess();
@@ -296,6 +298,13 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
                 <X className="w-4 h-4" />
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Persistent Concurrency Conflict Alert */}
+        {conflictState && (
+          <div className="px-4 lg:px-8 pt-4 max-w-5xl w-full mx-auto">
+            <ConflictAlert />
           </div>
         )}
 

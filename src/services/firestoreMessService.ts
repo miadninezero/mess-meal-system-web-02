@@ -6,10 +6,13 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocFromServer,
+  getDocsFromServer,
   limit,
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -39,6 +42,11 @@ import {
 } from '../types/mess';
 import { isDeadlinePassed, isFriday as checkIsFriday } from '../utils/dhakaTime';
 import { roundTwoDecimals } from '../utils/messCalculations';
+import {
+  assertAndNextVersion,
+  isConcurrencyConflictError,
+  normalizeVersion,
+} from '../utils/optimisticConcurrency';
 import { IMessDataService, MessObservers } from './messServiceTypes';
 
 function toMillis(val: unknown): number | undefined {
@@ -136,6 +144,7 @@ export const firestoreMessService: IMessDataService = {
             activeMonth: d.activeMonth ?? '',
             lunchBookingDeadline: d.lunchBookingDeadline ?? '09:00',
             nightBookingDeadline: d.nightBookingDeadline ?? '17:00',
+            version: normalizeVersion(d.version),
             createdAt: toMillis(d.createdAt),
             updatedAt: toMillis(d.updatedAt),
           };
@@ -183,6 +192,7 @@ export const firestoreMessService: IMessDataService = {
             activeMonth: d.activeMonth ?? '',
             lunchBookingDeadline: d.lunchBookingDeadline ?? '09:00',
             nightBookingDeadline: d.nightBookingDeadline ?? '17:00',
+            version: normalizeVersion(d.version),
             createdAt: toMillis(d.createdAt),
             updatedAt: toMillis(d.updatedAt),
           });
@@ -255,6 +265,7 @@ export const firestoreMessService: IMessDataService = {
               nightFinalOrder: d.nightFinalOrder ?? null,
               totalDayUnits: Number(d.totalDayUnits ?? 0),
               totalDayMeals: Number(d.totalDayMeals ?? 0),
+              version: normalizeVersion(d.version),
               updatedBy: d.updatedBy ?? '',
               updatedAt: toMillis(d.updatedAt),
             };
@@ -281,6 +292,7 @@ export const firestoreMessService: IMessDataService = {
                 itemsDescription: d.itemsDescription ?? '',
                 category: d.category ?? 'Groceries',
                 date: d.date ?? '',
+                version: normalizeVersion(d.version),
                 createdAt: toMillis(d.createdAt),
               };
             })
@@ -308,6 +320,7 @@ export const firestoreMessService: IMessDataService = {
                 paymentMethod: d.paymentMethod ?? 'Cash',
                 notes: d.notes ?? '',
                 recordedBy: d.recordedBy ?? '',
+                version: normalizeVersion(d.version),
                 createdAt: toMillis(d.createdAt),
               };
             })
@@ -330,6 +343,7 @@ export const firestoreMessService: IMessDataService = {
               title: d.title ?? '',
               amount: Number(d.amount ?? 0),
               month: d.month ?? '',
+              version: normalizeVersion(d.version),
               createdAt: toMillis(d.createdAt),
             };
           });
@@ -362,6 +376,7 @@ export const firestoreMessService: IMessDataService = {
                 payments: d.payments ?? {},
                 createdByUid: d.createdByUid ?? '',
                 createdByName: d.createdByName ?? '',
+                version: normalizeVersion(d.version),
                 createdAt: toMillis(d.createdAt),
                 updatedAt: toMillis(d.updatedAt),
               };
@@ -438,6 +453,172 @@ export const firestoreMessService: IMessDataService = {
     };
   },
 
+  async refreshMessData(messId, currentUserId, observers: MessObservers) {
+    if (!messId) return;
+    try {
+      const [
+        messSnap,
+        membersSnap,
+        mealsSnap,
+        bazaarSnap,
+        depositsSnap,
+        utilitiesSnap,
+        sharedBillsSnap,
+      ] = await Promise.all([
+        getDocFromServer(doc(db, 'messes', messId)),
+        getDocsFromServer(collection(db, 'messes', messId, 'members')),
+        getDocsFromServer(collection(db, 'messes', messId, 'daily_meals')),
+        getDocsFromServer(collection(db, 'messes', messId, 'bazaar_expenses')),
+        getDocsFromServer(collection(db, 'messes', messId, 'deposits')),
+        getDocsFromServer(collection(db, 'messes', messId, 'utility_bills')),
+        getDocsFromServer(collection(db, 'messes', messId, 'shared_bills')),
+      ]);
+
+      if (!messSnap.exists()) {
+        observers.onMess?.(null);
+      } else {
+        const d = messSnap.data();
+        observers.onMess?.({
+          id: messSnap.id,
+          name: d.name ?? '',
+          managerUid: d.managerUid ?? '',
+          adminUids: Array.isArray(d.adminUids) ? d.adminUids : [],
+          memberUids: Array.isArray(d.memberUids) ? d.memberUids : [],
+          activeMonth: d.activeMonth ?? '',
+          lunchBookingDeadline: d.lunchBookingDeadline ?? '09:00',
+          nightBookingDeadline: d.nightBookingDeadline ?? '17:00',
+          version: normalizeVersion(d.version),
+          createdAt: toMillis(d.createdAt),
+          updatedAt: toMillis(d.updatedAt),
+        });
+      }
+
+      const freshMembers: Member[] = membersSnap.docs.map((docSnap) => {
+        const d = docSnap.data();
+        return {
+          id: docSnap.id,
+          userId: d.userId ?? '',
+          displayName: d.displayName ?? '',
+          room: d.room ?? '',
+          role: d.role === 'MANAGER' ? 'MANAGER' : 'MEMBER',
+          isActive: d.isActive !== false,
+          autoBookEnabled: Boolean(d.autoBookEnabled),
+          autoBookLunch: d.autoBookLunch !== false,
+          autoBookNight: d.autoBookNight !== false,
+          autoBookUpdatedAt: d.autoBookUpdatedAt ?? '',
+          createdAt: toMillis(d.createdAt),
+        };
+      });
+      observers.onMembers?.(freshMembers);
+
+      observers.onDailyMeals?.(
+        mealsSnap.docs.map((docSnap) => {
+          const d = docSnap.data();
+          return {
+            id: docSnap.id,
+            date: d.date ?? docSnap.id,
+            isFriday: Boolean(d.isFriday),
+            lunchServiceStatus: d.lunchServiceStatus === 'CANCELLED' ? 'CANCELLED' : 'ACTIVE',
+            nightServiceStatus: d.nightServiceStatus === 'CANCELLED' ? 'CANCELLED' : 'ACTIVE',
+            cancellationReason: d.cancellationReason ?? '',
+            bookings: d.bookings ?? {},
+            attendances: d.attendances ?? {},
+            lunchFinalOrder: d.lunchFinalOrder ?? null,
+            nightFinalOrder: d.nightFinalOrder ?? null,
+            totalDayUnits: Number(d.totalDayUnits ?? 0),
+            totalDayMeals: Number(d.totalDayMeals ?? 0),
+            version: normalizeVersion(d.version),
+            updatedBy: d.updatedBy ?? '',
+            updatedAt: toMillis(d.updatedAt),
+          };
+        })
+      );
+
+      observers.onBazaarExpenses?.(
+        bazaarSnap.docs
+          .map((docSnap) => {
+            const d = docSnap.data();
+            return {
+              id: docSnap.id,
+              buyerMemberId: d.buyerMemberId ?? '',
+              buyerName: d.buyerName ?? '',
+              amount: Number(d.amount ?? 0),
+              itemsDescription: d.itemsDescription ?? '',
+              category: d.category ?? 'Groceries',
+              date: d.date ?? '',
+              version: normalizeVersion(d.version),
+              createdAt: toMillis(d.createdAt),
+            };
+          })
+          .sort((a, b) => b.date.localeCompare(a.date))
+      );
+
+      observers.onDeposits?.(
+        depositsSnap.docs
+          .map((docSnap) => {
+            const d = docSnap.data();
+            return {
+              id: docSnap.id,
+              memberId: d.memberId ?? '',
+              memberName: d.memberName ?? '',
+              amount: Number(d.amount ?? 0),
+              date: d.date ?? '',
+              paymentMethod: d.paymentMethod ?? 'Cash',
+              notes: d.notes ?? '',
+              recordedBy: d.recordedBy ?? '',
+              version: normalizeVersion(d.version),
+              createdAt: toMillis(d.createdAt),
+            };
+          })
+          .sort((a, b) => b.date.localeCompare(a.date))
+      );
+
+      observers.onUtilityBills?.(
+        utilitiesSnap.docs.map((docSnap) => {
+          const d = docSnap.data();
+          return {
+            id: docSnap.id,
+            title: d.title ?? '',
+            amount: Number(d.amount ?? 0),
+            month: d.month ?? '',
+            version: normalizeVersion(d.version),
+            createdAt: toMillis(d.createdAt),
+          };
+        })
+      );
+
+      observers.onSharedBills?.(
+        sharedBillsSnap.docs
+          .map((docSnap) => {
+            const d = docSnap.data();
+            return {
+              id: docSnap.id,
+              title: d.title ?? '',
+              allocationType: d.allocationType ?? BillAllocationType.FIXED_PER_MEMBER,
+              totalAmount: Number(d.totalAmount ?? 0),
+              perMemberAmount: Number(d.perMemberAmount ?? 0),
+              month: d.month ?? '',
+              deadline: d.deadline ?? '',
+              notes: d.notes ?? '',
+              assignedMemberIds: Array.isArray(d.assignedMemberIds) ? d.assignedMemberIds : [],
+              memberShares: d.memberShares ?? {},
+              memberNames: d.memberNames ?? {},
+              payments: d.payments ?? {},
+              createdByUid: d.createdByUid ?? '',
+              createdByName: d.createdByName ?? '',
+              version: normalizeVersion(d.version),
+              createdAt: toMillis(d.createdAt),
+              updatedAt: toMillis(d.updatedAt),
+            };
+          })
+          .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+      );
+      void currentUserId;
+    } catch (e) {
+      handleFirestoreError(e, OperationType.GET, `messes/${messId}`);
+    }
+  },
+
   async saveUserProfile(profile) {
     const user = requireUser();
     const path = `users/${user.uid}`;
@@ -475,6 +656,7 @@ export const firestoreMessService: IMessDataService = {
         activeMonth: defaultMonth.slice(0, 10),
         lunchBookingDeadline: '09:00',
         nightBookingDeadline: '17:00',
+        version: 1,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -554,14 +736,26 @@ export const firestoreMessService: IMessDataService = {
     }
   },
 
-  async updateBookingDeadlines(messId, lunchDeadline, nightDeadline) {
+  async updateBookingDeadlines(messId, lunchDeadline, nightDeadline, expectedVersion) {
     const user = requireUser();
     const messRef = doc(db, 'messes', messId);
     try {
-      await updateDoc(messRef, {
-        lunchBookingDeadline: lunchDeadline.slice(0, 5),
-        nightBookingDeadline: nightDeadline.slice(0, 5),
-        updatedAt: serverTimestamp(),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(messRef);
+        const targetExpected =
+          expectedVersion !== undefined ? expectedVersion : normalizeVersion(snap.data()?.version);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion: targetExpected,
+          recordLabel: 'mess deadline settings',
+        });
+        tx.update(messRef, {
+          lunchBookingDeadline: lunchDeadline.slice(0, 5),
+          nightBookingDeadline: nightDeadline.slice(0, 5),
+          version: nextVersion,
+          updatedAt: serverTimestamp(),
+        });
       });
       await recordAuditLog(messId, {
         action: 'DEADLINE_CONFIGURED',
@@ -570,6 +764,7 @@ export const firestoreMessService: IMessDataService = {
         details: `Lunch cutoff: ${lunchDeadline}, Night cutoff: ${nightDeadline} (Asia/Dhaka)`,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, messRef.path);
     }
   },
@@ -693,36 +888,54 @@ export const firestoreMessService: IMessDataService = {
     }
   },
 
-  async updateMealServiceStatus(messId, date, lunchStatus, nightStatus, cancellationReason) {
+  async updateMealServiceStatus(
+    messId,
+    date,
+    lunchStatus,
+    nightStatus,
+    cancellationReason,
+    expectedVersion
+  ) {
     const user = requireUser();
     const isFri = checkIsFriday(date);
     const ref = doc(db, 'messes', messId, 'daily_meals', date);
+    const effectiveNight: MealServiceStatus = isFri ? 'CANCELLED' : nightStatus;
 
     try {
-      const snap = await getDoc(ref);
-      const effectiveNight: MealServiceStatus = isFri ? 'CANCELLED' : nightStatus;
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          date,
-          isFriday: isFri,
-          lunchServiceStatus: lunchStatus,
-          nightServiceStatus: effectiveNight,
-          cancellationReason: cancellationReason.slice(0, 300),
-          bookings: {},
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion,
+          recordLabel: `daily meal record (${date})`,
         });
-      } else {
-        await updateDoc(ref, {
-          date,
-          isFriday: isFri,
-          lunchServiceStatus: lunchStatus,
-          nightServiceStatus: effectiveNight,
-          cancellationReason: cancellationReason.slice(0, 300),
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
-        });
-      }
+
+        if (!snap.exists()) {
+          tx.set(ref, {
+            date,
+            isFriday: isFri,
+            lunchServiceStatus: lunchStatus,
+            nightServiceStatus: effectiveNight,
+            cancellationReason: cancellationReason.slice(0, 300),
+            bookings: {},
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          tx.update(ref, {
+            date,
+            isFriday: isFri,
+            lunchServiceStatus: lunchStatus,
+            nightServiceStatus: effectiveNight,
+            cancellationReason: cancellationReason.slice(0, 300),
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
       await recordAuditLog(messId, {
         action: 'SERVICE_STATUS_UPDATED',
         performedByUid: user.uid,
@@ -731,6 +944,7 @@ export const firestoreMessService: IMessDataService = {
         reason: cancellationReason,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
@@ -743,6 +957,7 @@ export const firestoreMessService: IMessDataService = {
     lunchDeadline,
     nightDeadline,
     isManager,
+    expectedVersion,
   }) {
     const user = requireUser();
     const isFri = checkIsFriday(date);
@@ -771,27 +986,37 @@ export const firestoreMessService: IMessDataService = {
     };
 
     try {
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          date,
-          isFriday: isFri,
-          lunchServiceStatus: 'ACTIVE',
-          nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
-          bookings: { [memberId]: bookingPayload },
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion,
+          recordLabel: `daily meal record (${date})`,
         });
-      } else {
-        await updateDoc(ref, {
-          date,
-          isFriday: isFri,
-          [`bookings.${memberId}`]: bookingPayload,
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
-        });
-      }
+
+        if (!snap.exists()) {
+          tx.set(ref, {
+            date,
+            isFriday: isFri,
+            lunchServiceStatus: 'ACTIVE',
+            nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
+            bookings: { [memberId]: bookingPayload },
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          tx.update(ref, {
+            [`bookings.${memberId}`]: bookingPayload,
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
@@ -846,18 +1071,29 @@ export const firestoreMessService: IMessDataService = {
       };
       const ref = doc(db, 'messes', messId, 'daily_meals', date);
       try {
-        await updateDoc(ref, {
-          [`bookings.${memberId}`]: updated,
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          const nextVersion = assertAndNextVersion({
+            exists: snap.exists(),
+            currentVersion: snap.data()?.version,
+            expectedVersion: normalizeVersion(record.version),
+            recordLabel: `daily meal record (${date})`,
+          });
+          tx.update(ref, {
+            [`bookings.${memberId}`]: updated,
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
         });
       } catch (e) {
+        if (isConcurrencyConflictError(e)) throw e;
         handleFirestoreError(e, OperationType.UPDATE, ref.path);
       }
     }
   },
 
-  async saveFinalMealOrderSummary(messId, date, mealType, summary) {
+  async saveFinalMealOrderSummary(messId, date, mealType, summary, expectedVersion) {
     const user = requireUser();
     const isFri = checkIsFriday(date);
     const ref = doc(db, 'messes', messId, 'daily_meals', date);
@@ -875,30 +1111,50 @@ export const firestoreMessService: IMessDataService = {
     };
 
     try {
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          date,
-          isFriday: isFri,
-          lunchServiceStatus: 'ACTIVE',
-          nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
-          [fieldName]: orderPayload,
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion,
+          recordLabel: `daily meal record (${date})`,
         });
-      } else {
-        await updateDoc(ref, {
-          [fieldName]: orderPayload,
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
-        });
-      }
+
+        if (!snap.exists()) {
+          tx.set(ref, {
+            date,
+            isFriday: isFri,
+            lunchServiceStatus: 'ACTIVE',
+            nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
+            [fieldName]: orderPayload,
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          tx.update(ref, {
+            [fieldName]: orderPayload,
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
 
-  async overrideMemberBooking({ messId, date, memberId, memberName, booking, reason }) {
+  async overrideMemberBooking({
+    messId,
+    date,
+    memberId,
+    memberName,
+    booking,
+    reason,
+    expectedVersion,
+  }) {
     const user = requireUser();
     const isFri = checkIsFriday(date);
     const ref = doc(db, 'messes', messId, 'daily_meals', date);
@@ -913,24 +1169,35 @@ export const firestoreMessService: IMessDataService = {
     };
 
     try {
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          date,
-          isFriday: isFri,
-          lunchServiceStatus: 'ACTIVE',
-          nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
-          bookings: { [memberId]: bookingPayload },
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion,
+          recordLabel: `daily meal record (${date})`,
         });
-      } else {
-        await updateDoc(ref, {
-          [`bookings.${memberId}`]: bookingPayload,
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
-        });
-      }
+
+        if (!snap.exists()) {
+          tx.set(ref, {
+            date,
+            isFriday: isFri,
+            lunchServiceStatus: 'ACTIVE',
+            nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
+            bookings: { [memberId]: bookingPayload },
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          tx.update(ref, {
+            [`bookings.${memberId}`]: bookingPayload,
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
       await recordAuditLog(messId, {
         action: 'BOOKING_OVERRIDE',
         performedByUid: user.uid,
@@ -941,32 +1208,52 @@ export const firestoreMessService: IMessDataService = {
         reason,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
 
-  async saveAttendance({ messId, date, memberId, memberName, attendance, isFriday }) {
+  async saveAttendance({
+    messId,
+    date,
+    memberId,
+    memberName,
+    attendance,
+    isFriday,
+    expectedVersion,
+  }) {
     const user = requireUser();
     const ref = doc(db, 'messes', messId, 'daily_meals', date);
     try {
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await setDoc(ref, {
-          date,
-          isFriday,
-          lunchServiceStatus: 'ACTIVE',
-          nightServiceStatus: isFriday ? 'CANCELLED' : 'ACTIVE',
-          attendances: { [memberId]: attendance },
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion,
+          recordLabel: `daily meal record (${date})`,
         });
-      } else {
-        await updateDoc(ref, {
-          [`attendances.${memberId}`]: attendance,
-          updatedBy: user.uid,
-          updatedAt: serverTimestamp(),
-        });
-      }
+
+        if (!snap.exists()) {
+          tx.set(ref, {
+            date,
+            isFriday,
+            lunchServiceStatus: 'ACTIVE',
+            nightServiceStatus: isFriday ? 'CANCELLED' : 'ACTIVE',
+            attendances: { [memberId]: attendance },
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        } else {
+          tx.update(ref, {
+            [`attendances.${memberId}`]: attendance,
+            version: nextVersion,
+            updatedBy: user.uid,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      });
       await recordAuditLog(messId, {
         action: 'ATTENDANCE_CONFIRMED',
         performedByUid: user.uid,
@@ -976,6 +1263,7 @@ export const firestoreMessService: IMessDataService = {
         details: `Date: ${date} | Units: ${attendance.calculatedUnits} (Lunch: ${attendance.attendedLunch}, Night: ${attendance.attendedNight})`,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
@@ -991,6 +1279,7 @@ export const firestoreMessService: IMessDataService = {
         itemsDescription: expense.itemsDescription.slice(0, 500),
         category: expense.category.slice(0, 60),
         date: expense.date.slice(0, 10),
+        version: 1,
         createdAt: serverTimestamp(),
       });
     } catch (e) {
@@ -1002,15 +1291,26 @@ export const firestoreMessService: IMessDataService = {
     requireUser();
     const ref = doc(db, 'messes', messId, 'bazaar_expenses', expense.id);
     try {
-      await updateDoc(ref, {
-        buyerMemberId: expense.buyerMemberId.slice(0, 128),
-        buyerName: expense.buyerName.slice(0, 120),
-        amount: expense.amount,
-        itemsDescription: expense.itemsDescription.slice(0, 500),
-        category: expense.category.slice(0, 60),
-        date: expense.date.slice(0, 10),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion: normalizeVersion(expense.version),
+          recordLabel: 'bazaar expense',
+        });
+        tx.update(ref, {
+          buyerMemberId: expense.buyerMemberId.slice(0, 128),
+          buyerName: expense.buyerName.slice(0, 120),
+          amount: expense.amount,
+          itemsDescription: expense.itemsDescription.slice(0, 500),
+          category: expense.category.slice(0, 60),
+          date: expense.date.slice(0, 10),
+          version: nextVersion,
+        });
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
@@ -1037,6 +1337,7 @@ export const firestoreMessService: IMessDataService = {
         paymentMethod: deposit.paymentMethod.slice(0, 40),
         notes: (deposit.notes || '').slice(0, 300),
         recordedBy: user.uid,
+        version: 1,
         createdAt: serverTimestamp(),
       });
       await recordAuditLog(messId, {
@@ -1056,13 +1357,23 @@ export const firestoreMessService: IMessDataService = {
     const user = requireUser();
     const ref = doc(db, 'messes', messId, 'deposits', deposit.id);
     try {
-      await updateDoc(ref, {
-        memberId: deposit.memberId.slice(0, 128),
-        memberName: deposit.memberName.slice(0, 120),
-        amount: deposit.amount,
-        date: deposit.date.slice(0, 10),
-        paymentMethod: deposit.paymentMethod.slice(0, 40),
-        notes: (deposit.notes || '').slice(0, 300),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion: normalizeVersion(deposit.version),
+          recordLabel: 'deposit record',
+        });
+        tx.update(ref, {
+          memberId: deposit.memberId.slice(0, 128),
+          memberName: deposit.memberName.slice(0, 120),
+          amount: deposit.amount,
+          date: deposit.date.slice(0, 10),
+          paymentMethod: deposit.paymentMethod.slice(0, 40),
+          notes: (deposit.notes || '').slice(0, 300),
+          version: nextVersion,
+        });
       });
       await recordAuditLog(messId, {
         action: 'DEPOSIT_UPDATED',
@@ -1073,6 +1384,7 @@ export const firestoreMessService: IMessDataService = {
         details: `Updated deposit to ৳${deposit.amount} (${deposit.paymentMethod}) on ${deposit.date}`,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
@@ -1103,6 +1415,7 @@ export const firestoreMessService: IMessDataService = {
         title: bill.title.slice(0, 120),
         amount: bill.amount,
         month: bill.month.slice(0, 10),
+        version: 1,
         createdAt: serverTimestamp(),
       });
       await recordAuditLog(messId, {
@@ -1120,10 +1433,20 @@ export const firestoreMessService: IMessDataService = {
     const user = requireUser();
     const ref = doc(db, 'messes', messId, 'utility_bills', bill.id);
     try {
-      await updateDoc(ref, {
-        title: bill.title.slice(0, 120),
-        amount: bill.amount,
-        month: bill.month.slice(0, 10),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion: normalizeVersion(bill.version),
+          recordLabel: `utility bill (${bill.title})`,
+        });
+        tx.update(ref, {
+          title: bill.title.slice(0, 120),
+          amount: bill.amount,
+          month: bill.month.slice(0, 10),
+          version: nextVersion,
+        });
       });
       await recordAuditLog(messId, {
         action: 'UTILITY_BILL_UPDATED',
@@ -1132,6 +1455,7 @@ export const firestoreMessService: IMessDataService = {
         details: `Updated utility bill '${bill.title}': ৳${bill.amount}`,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
@@ -1215,6 +1539,7 @@ export const firestoreMessService: IMessDataService = {
         payments: {},
         createdByUid: user.uid,
         createdByName: creatorName,
+        version: 1,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
@@ -1261,31 +1586,42 @@ export const firestoreMessService: IMessDataService = {
         ? roundTwoDecimals(finalTotal / bill.assignedMemberIds.length)
         : bill.perMemberAmount;
 
-    const updatedPayments: Record<string, unknown> = {};
-    for (const [memId, rec] of Object.entries(bill.payments)) {
-      const share = finalShares[memId] ?? finalPerMem;
-      const status =
-        rec.amountPaid >= share && share > 0
-          ? BillPaymentStatus.PAID
-          : rec.amountPaid > 0
-            ? BillPaymentStatus.PARTIALLY_PAID
-            : BillPaymentStatus.UNPAID;
-      updatedPayments[memId] = {
-        ...rec,
-        status,
-      };
-    }
-
     try {
-      await updateDoc(ref, {
-        title: bill.title.slice(0, 120),
-        deadline: bill.deadline.slice(0, 16),
-        notes: (bill.notes || '').slice(0, 400),
-        totalAmount: finalTotal,
-        perMemberAmount: finalPerMem,
-        memberShares: finalShares,
-        payments: updatedPayments,
-        updatedAt: serverTimestamp(),
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion: normalizeVersion(bill.version),
+          recordLabel: `shared bill (${bill.title})`,
+        });
+
+        const updatedPayments: Record<string, unknown> = {};
+        for (const [memId, rec] of Object.entries(bill.payments)) {
+          const share = finalShares[memId] ?? finalPerMem;
+          const status =
+            rec.amountPaid >= share && share > 0
+              ? BillPaymentStatus.PAID
+              : rec.amountPaid > 0
+                ? BillPaymentStatus.PARTIALLY_PAID
+                : BillPaymentStatus.UNPAID;
+          updatedPayments[memId] = {
+            ...rec,
+            status,
+          };
+        }
+
+        tx.update(ref, {
+          title: bill.title.slice(0, 120),
+          deadline: bill.deadline.slice(0, 16),
+          notes: (bill.notes || '').slice(0, 400),
+          totalAmount: finalTotal,
+          perMemberAmount: finalPerMem,
+          memberShares: finalShares,
+          payments: updatedPayments,
+          version: nextVersion,
+          updatedAt: serverTimestamp(),
+        });
       });
       await recordAuditLog(messId, {
         action: 'SHARED_BILL_UPDATED',
@@ -1294,15 +1630,29 @@ export const firestoreMessService: IMessDataService = {
         details: `Updated bill '${bill.title}' (Total: ৳${finalTotal}, Deadline: ${bill.deadline})`,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },
 
-  async deleteSharedBill(messId, billId, billTitle, totalAmount) {
+  async deleteSharedBill(messId, billId, billTitle, totalAmount, expectedVersion) {
     const user = requireUser();
     const ref = doc(db, 'messes', messId, 'shared_bills', billId);
     try {
-      await deleteDoc(ref);
+      if (expectedVersion !== undefined) {
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(ref);
+          assertAndNextVersion({
+            exists: snap.exists(),
+            currentVersion: snap.data()?.version,
+            expectedVersion,
+            recordLabel: `shared bill (${billTitle})`,
+          });
+          tx.delete(ref);
+        });
+      } else {
+        await deleteDoc(ref);
+      }
       await recordAuditLog(messId, {
         action: 'SHARED_BILL_DELETED',
         performedByUid: user.uid,
@@ -1310,6 +1660,7 @@ export const firestoreMessService: IMessDataService = {
         details: `Deleted shared bill '${billTitle}' (Total: ৳${totalAmount})`,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.DELETE, ref.path);
     }
   },
@@ -1324,30 +1675,52 @@ export const firestoreMessService: IMessDataService = {
     paymentMethod,
     paymentDate,
     notes,
+    expectedVersion,
   }) {
     const user = requireUser();
     const ref = doc(db, 'messes', messId, 'shared_bills', billId);
-    const status =
-      amountPaid >= assignedShare && assignedShare > 0
-        ? BillPaymentStatus.PAID
-        : amountPaid > 0
-          ? BillPaymentStatus.PARTIALLY_PAID
-          : BillPaymentStatus.UNPAID;
 
     try {
-      await updateDoc(ref, {
-        [`payments.${memberId}`]: {
-          memberId,
-          memberName,
-          amountPaid,
-          status,
-          paymentDate,
-          paymentMethod,
-          notes,
-          recordedByUid: user.uid,
-          recordedByName: user.displayName || 'Manager',
-        },
-        updatedAt: serverTimestamp(),
+      let computedStatus: string = BillPaymentStatus.UNPAID;
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        const nextVersion = assertAndNextVersion({
+          exists: snap.exists(),
+          currentVersion: snap.data()?.version,
+          expectedVersion,
+          recordLabel: 'shared bill',
+        });
+
+        const data = snap.data() || {};
+        const liveShare =
+          typeof data.memberShares?.[memberId] === 'number'
+            ? data.memberShares[memberId]
+            : typeof data.perMemberAmount === 'number'
+              ? data.perMemberAmount
+              : assignedShare;
+
+        computedStatus =
+          amountPaid >= liveShare && liveShare > 0
+            ? BillPaymentStatus.PAID
+            : amountPaid > 0
+              ? BillPaymentStatus.PARTIALLY_PAID
+              : BillPaymentStatus.UNPAID;
+
+        tx.update(ref, {
+          [`payments.${memberId}`]: {
+            memberId,
+            memberName,
+            amountPaid,
+            status: computedStatus,
+            paymentDate,
+            paymentMethod,
+            notes,
+            recordedByUid: user.uid,
+            recordedByName: user.displayName || 'Manager',
+          },
+          version: nextVersion,
+          updatedAt: serverTimestamp(),
+        });
       });
       await recordAuditLog(messId, {
         action: 'BILL_PAYMENT_RECORDED',
@@ -1355,9 +1728,10 @@ export const firestoreMessService: IMessDataService = {
         performedByName: user.displayName || 'Manager',
         targetMemberId: memberId,
         targetMemberName: memberName,
-        details: `Recorded payment of ৳${amountPaid} for ${memberName} (Status: ${status}, Method: ${paymentMethod})`,
+        details: `Recorded payment of ৳${amountPaid} for ${memberName} (Status: ${computedStatus}, Method: ${paymentMethod})`,
       });
     } catch (e) {
+      if (isConcurrencyConflictError(e)) throw e;
       handleFirestoreError(e, OperationType.UPDATE, ref.path);
     }
   },

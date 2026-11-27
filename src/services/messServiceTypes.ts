@@ -48,11 +48,22 @@ export interface IMessDataService {
     observers: MessObservers
   ): () => void;
 
+  refreshMessData(
+    messId: string,
+    currentUserId: string,
+    observers: MessObservers
+  ): Promise<void>;
+
   saveUserProfile(profile: Partial<UserProfile> & { id: string }): Promise<void>;
 
   createMess(name: string, managerName: string, defaultMonth: string): Promise<string>;
   joinMess(messId: string, memberName: string, room: string): Promise<void>;
-  updateBookingDeadlines(messId: string, lunchDeadline: string, nightDeadline: string): Promise<void>;
+  updateBookingDeadlines(
+    messId: string,
+    lunchDeadline: string,
+    nightDeadline: string,
+    expectedVersion?: number | null
+  ): Promise<void>;
 
   promoteMemberToManager(messId: string, targetMember: Member): Promise<void>;
   demoteManagerToMember(messId: string, targetMember: Member): Promise<void>;
@@ -64,7 +75,8 @@ export interface IMessDataService {
     date: string,
     lunchStatus: MealServiceStatus,
     nightStatus: MealServiceStatus,
-    cancellationReason: string
+    cancellationReason: string,
+    expectedVersion: number | null
   ): Promise<void>;
 
   saveMemberBooking(params: {
@@ -75,6 +87,7 @@ export interface IMessDataService {
     lunchDeadline: string;
     nightDeadline: string;
     isManager: boolean;
+    expectedVersion: number | null;
   }): Promise<void>;
 
   updateMemberAutoBookPreference(params: {
@@ -99,7 +112,8 @@ export interface IMessDataService {
     messId: string,
     date: string,
     mealType: 'LUNCH' | 'NIGHT',
-    summary: FinalOrderSummary
+    summary: FinalOrderSummary,
+    expectedVersion: number | null
   ): Promise<void>;
 
   overrideMemberBooking(params: {
@@ -109,6 +123,7 @@ export interface IMessDataService {
     memberName: string;
     booking: MealBookingEntry;
     reason: string;
+    expectedVersion: number | null;
   }): Promise<void>;
 
   saveAttendance(params: {
@@ -118,6 +133,7 @@ export interface IMessDataService {
     memberName: string;
     attendance: MealAttendanceEntry;
     isFriday: boolean;
+    expectedVersion: number | null;
   }): Promise<void>;
 
   addBazaarExpense(messId: string, expense: Omit<BazaarExpense, 'id'>): Promise<void>;
@@ -154,7 +170,8 @@ export interface IMessDataService {
     messId: string,
     billId: string,
     billTitle: string,
-    totalAmount: number
+    totalAmount: number,
+    expectedVersion?: number | null
   ): Promise<void>;
 
   recordBillPayment(params: {
@@ -167,6 +184,7 @@ export interface IMessDataService {
     paymentMethod: string;
     paymentDate: string;
     notes: string;
+    expectedVersion: number | null;
   }): Promise<void>;
 
   markNotificationAsRead(messId: string, notificationId: string): Promise<void>;

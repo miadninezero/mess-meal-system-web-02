@@ -44,6 +44,10 @@ import {
   calculateSummary,
   computeKitchenOrderSummary,
 } from '../utils/messCalculations';
+import {
+  isConcurrencyConflictError,
+  normalizeVersion,
+} from '../utils/optimisticConcurrency';
 
 export type NavTab =
   | 'dashboard'
@@ -61,6 +65,12 @@ export interface AuthUserInfo {
   displayName: string;
   email: string;
   photoURL?: string | null;
+}
+
+export interface ConcurrencyConflictState {
+  message: string;
+  recordLabel: string;
+  occurredAt: number;
 }
 
 interface MessContextValue {
@@ -87,6 +97,8 @@ interface MessContextValue {
   summary: MessSummary;
   kitchenSummary: KitchenOrderSummary;
   uiMessage: { text: string; tone: 'info' | 'error' } | null;
+  conflictState: ConcurrencyConflictState | null;
+  syncRevision: number;
   isSubmitting: boolean;
   activeNav: NavTab;
   isWalkthroughOpen: boolean;
@@ -96,6 +108,8 @@ interface MessContextValue {
   setSelectedDate: (date: string) => void;
   clearUiMessage: () => void;
   showUiMessage: (text: string, tone?: 'info' | 'error') => void;
+  clearConflict: () => void;
+  reloadLatestData: () => Promise<void>;
   openWalkthrough: () => void;
   closeWalkthrough: () => void;
 
@@ -107,21 +121,27 @@ interface MessContextValue {
   selectMess: (messId: string) => Promise<void>;
   createMess: (name: string, managerName: string) => Promise<void>;
   joinMess: (messId: string, memberName: string, room: string) => Promise<void>;
-  configureDeadlines: (lunchDeadline: string, nightDeadline: string) => Promise<void>;
+  configureDeadlines: (
+    lunchDeadline: string,
+    nightDeadline: string,
+    expectedVersion?: number | null
+  ) => Promise<boolean>;
 
   updateMealServiceStatus: (
     date: string,
     lunchStatus: MealServiceStatus,
     nightStatus: MealServiceStatus,
-    cancellationReason: string
-  ) => Promise<void>;
+    cancellationReason: string,
+    expectedVersion?: number | null
+  ) => Promise<boolean>;
   saveMyBooking: (
     date: string,
     statusLunch: 'BOOKED' | 'CANCELLED',
     statusNight: 'BOOKED' | 'CANCELLED',
     guestLunch: number,
-    guestNight: number
-  ) => Promise<void>;
+    guestNight: number,
+    expectedVersion?: number | null
+  ) => Promise<boolean>;
   setAutoBooking: (enabled: boolean, bookLunch?: boolean, bookNight?: boolean) => Promise<void>;
   managerOverrideBooking: (params: {
     date: string;
@@ -132,8 +152,13 @@ interface MessContextValue {
     guestLunch: number;
     guestNight: number;
     reason: string;
-  }) => Promise<void>;
-  saveFinalOrderSummary: (date: string, mealType: 'LUNCH' | 'NIGHT') => Promise<void>;
+    expectedVersion?: number | null;
+  }) => Promise<boolean>;
+  saveFinalOrderSummary: (
+    date: string,
+    mealType: 'LUNCH' | 'NIGHT',
+    expectedVersion?: number | null
+  ) => Promise<boolean>;
   saveConfirmedAttendance: (params: {
     date: string;
     memberId: string;
@@ -142,7 +167,8 @@ interface MessContextValue {
     attendedNight: boolean;
     guestLunchAttended: number;
     guestNightAttended: number;
-  }) => Promise<void>;
+    expectedVersion?: number | null;
+  }) => Promise<boolean>;
 
   addBazaarExpense: (params: {
     buyerMemberId: string;
@@ -151,9 +177,9 @@ interface MessContextValue {
     itemsDescription: string;
     category: string;
     date: string;
-  }) => Promise<void>;
-  updateBazaarExpense: (expense: BazaarExpense) => Promise<void>;
-  deleteBazaarExpense: (expenseId: string) => Promise<void>;
+  }) => Promise<boolean>;
+  updateBazaarExpense: (expense: BazaarExpense) => Promise<boolean>;
+  deleteBazaarExpense: (expenseId: string) => Promise<boolean>;
 
   addDeposit: (params: {
     memberId: string;
@@ -162,13 +188,13 @@ interface MessContextValue {
     paymentMethod: string;
     notes: string;
     date: string;
-  }) => Promise<void>;
-  updateDeposit: (deposit: Deposit) => Promise<void>;
-  deleteDeposit: (deposit: Deposit) => Promise<void>;
+  }) => Promise<boolean>;
+  updateDeposit: (deposit: Deposit) => Promise<boolean>;
+  deleteDeposit: (deposit: Deposit) => Promise<boolean>;
 
-  addUtilityBill: (title: string, amount: number) => Promise<void>;
-  updateUtilityBill: (bill: UtilityBill) => Promise<void>;
-  deleteUtilityBill: (bill: UtilityBill) => Promise<void>;
+  addUtilityBill: (title: string, amount: number) => Promise<boolean>;
+  updateUtilityBill: (bill: UtilityBill) => Promise<boolean>;
+  deleteUtilityBill: (bill: UtilityBill) => Promise<boolean>;
 
   createSharedBill: (params: {
     title: string;
@@ -177,12 +203,12 @@ interface MessContextValue {
     deadline: string;
     notes: string;
     customShares?: Record<string, number>;
-  }) => Promise<void>;
+  }) => Promise<boolean>;
   updateSharedBill: (
     bill: SharedBill,
     updatedShares?: Record<string, number>
-  ) => Promise<void>;
-  deleteSharedBill: (bill: SharedBill) => Promise<void>;
+  ) => Promise<boolean>;
+  deleteSharedBill: (bill: SharedBill) => Promise<boolean>;
   recordBillPayment: (params: {
     billId: string;
     memberId: string;
@@ -192,7 +218,8 @@ interface MessContextValue {
     paymentMethod: string;
     paymentDate: string;
     notes: string;
-  }) => Promise<void>;
+    expectedVersion?: number | null;
+  }) => Promise<boolean>;
 
   updateMemberStatus: (memberId: string, isActive: boolean) => Promise<void>;
   promoteMemberToManager: (targetMember: Member) => Promise<void>;
@@ -240,6 +267,8 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const [selectedDate, setSelectedDate] = useState<string>(todayDhakaDate);
   const [activeNav, setActiveNav] = useState<NavTab>('dashboard');
   const [uiMessage, setUiMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
+  const [conflictState, setConflictState] = useState<ConcurrencyConflictState | null>(null);
+  const [syncRevision, setSyncRevision] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isWalkthroughOpen, setIsWalkthroughOpen] = useState<boolean>(() => {
     if (!isAutostart) return false;
@@ -273,6 +302,25 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const clearUiMessage = useCallback(() => {
     setUiMessage(null);
   }, []);
+
+  const clearConflict = useCallback(() => {
+    setConflictState(null);
+  }, []);
+
+  const handleMutationError = useCallback(
+    (e: unknown, fallbackMessage: string) => {
+      if (isConcurrencyConflictError(e)) {
+        setConflictState({
+          message: e.message,
+          recordLabel: e.recordLabel,
+          occurredAt: Date.now(),
+        });
+        return;
+      }
+      showUiMessage(e instanceof Error ? e.message : fallbackMessage, 'error');
+    },
+    [showUiMessage]
+  );
 
   // Auto-dismiss UI toast after 4.5s
   useEffect(() => {
@@ -367,6 +415,32 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     };
   }, [authMode, authUser, service, showUiMessage]);
 
+  const reloadLatestData = useCallback(async () => {
+    if (!selectedMessId || !authUser || (authMode !== 'firebase' && authMode !== 'demo')) {
+      setConflictState(null);
+      return;
+    }
+    try {
+      await service.refreshMessData(selectedMessId, authUser.uid, {
+        onMess: setCurrentMess,
+        onMembers: setMembers,
+        onDailyMeals: setDailyMeals,
+        onBazaarExpenses: setBazaarExpenses,
+        onDeposits: setDeposits,
+        onUtilityBills: setUtilityBills,
+        onSharedBills: setSharedBills,
+        onNotifications: setNotifications,
+        onAuditLogs: setAuditLogs,
+        onError: (err) => showUiMessage(err.message, 'error'),
+      });
+      setConflictState(null);
+      setSyncRevision((prev) => prev + 1);
+      showUiMessage('Latest mess data loaded.');
+    } catch (e) {
+      showUiMessage(e instanceof Error ? e.message : 'Failed to reload latest data.', 'error');
+    }
+  }, [authMode, authUser, selectedMessId, service, showUiMessage]);
+
   // Observe active mess collections
   useEffect(() => {
     if (!selectedMessId || !authUser || (authMode !== 'firebase' && authMode !== 'demo')) {
@@ -444,6 +518,8 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     if (!selectedMessId || !currentMess || !isManager) return;
     if (selectedDate !== todayDhakaDate) return;
 
+    const currentRecord = dailyMeals.find((r) => r.id === selectedDate || r.date === selectedDate);
+    const expectedVersion = currentRecord ? normalizeVersion(currentRecord.version) : null;
     const lunchDeadline = currentMess.lunchBookingDeadline || '09:00';
     const nightDeadline = currentMess.nightBookingDeadline || '17:00';
 
@@ -456,16 +532,22 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       if (!autoSavedFinalRef.current.has(key)) {
         autoSavedFinalRef.current.add(key);
         service
-          .saveFinalMealOrderSummary(selectedMessId, selectedDate, 'LUNCH', {
-            mealType: 'LUNCH',
-            date: selectedDate,
-            totalPortions: kitchenSummary.lunchTotalPortions,
-            memberCount: kitchenSummary.lunchMemberCount,
-            guestCount: kitchenSummary.lunchGuestCount,
-            deadline: lunchDeadline,
-            isLocked: true,
-            lockedAtDhakaTime: format12Hour(lunchDeadline),
-          })
+          .saveFinalMealOrderSummary(
+            selectedMessId,
+            selectedDate,
+            'LUNCH',
+            {
+              mealType: 'LUNCH',
+              date: selectedDate,
+              totalPortions: kitchenSummary.lunchTotalPortions,
+              memberCount: kitchenSummary.lunchMemberCount,
+              guestCount: kitchenSummary.lunchGuestCount,
+              deadline: lunchDeadline,
+              isLocked: true,
+              lockedAtDhakaTime: format12Hour(lunchDeadline),
+            },
+            expectedVersion
+          )
           .catch(() => {});
       }
     }
@@ -480,20 +562,26 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       if (!autoSavedFinalRef.current.has(key)) {
         autoSavedFinalRef.current.add(key);
         service
-          .saveFinalMealOrderSummary(selectedMessId, selectedDate, 'NIGHT', {
-            mealType: 'NIGHT',
-            date: selectedDate,
-            totalPortions: kitchenSummary.nightTotalPortions,
-            memberCount: kitchenSummary.nightMemberCount,
-            guestCount: kitchenSummary.nightGuestCount,
-            deadline: nightDeadline,
-            isLocked: true,
-            lockedAtDhakaTime: format12Hour(nightDeadline),
-          })
+          .saveFinalMealOrderSummary(
+            selectedMessId,
+            selectedDate,
+            'NIGHT',
+            {
+              mealType: 'NIGHT',
+              date: selectedDate,
+              totalPortions: kitchenSummary.nightTotalPortions,
+              memberCount: kitchenSummary.nightMemberCount,
+              guestCount: kitchenSummary.nightGuestCount,
+              deadline: nightDeadline,
+              isLocked: true,
+              lockedAtDhakaTime: format12Hour(nightDeadline),
+            },
+            expectedVersion
+          )
           .catch(() => {});
       }
     }
-  }, [currentMess, isManager, kitchenSummary, selectedDate, selectedMessId, service, todayDhakaDate]);
+  }, [currentMess, dailyMeals, isManager, kitchenSummary, selectedDate, selectedMessId, service, todayDhakaDate]);
 
   // --- Auth Actions ---
   const signInWithGoogle = useCallback(async () => {
@@ -534,6 +622,8 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
 
   const resetDemoWorkspace = useCallback(() => {
     demoMessService.resetDemoData();
+    setConflictState(null);
+    setSyncRevision((prev) => prev + 1);
     setSelectedMessId('GV-MESS-2026');
     setActiveNav('dashboard');
     openWalkthrough();
@@ -544,6 +634,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     if (authMode === 'firebase') {
       await firebaseSignOut(auth);
     }
+    setConflictState(null);
     setAuthMode('unauthenticated');
     setAuthUser(null);
     setSelectedMessId('');
@@ -555,6 +646,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   const selectMess = useCallback(
     async (messId: string) => {
       if (!authUser) return;
+      setConflictState(null);
       setSelectedMessId(messId);
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(`mess_meal_selected_${authUser.uid}`, messId);
@@ -617,20 +709,38 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
   );
 
   const configureDeadlines = useCallback(
-    async (lunchDeadline: string, nightDeadline: string) => {
-      if (!selectedMessId) return;
+    async (
+      lunchDeadline: string,
+      nightDeadline: string,
+      expectedVersion?: number | null
+    ): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can configure deadlines.', 'error');
-        return;
+        return false;
       }
+      const resolvedVersion =
+        expectedVersion !== undefined
+          ? expectedVersion
+          : currentMess
+            ? normalizeVersion(currentMess.version)
+            : null;
       try {
-        await service.updateBookingDeadlines(selectedMessId, lunchDeadline, nightDeadline);
+        await service.updateBookingDeadlines(
+          selectedMessId,
+          lunchDeadline,
+          nightDeadline,
+          resolvedVersion
+        );
+        setConflictState(null);
         showUiMessage('Booking deadlines updated (Asia/Dhaka).');
+        return true;
       } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to update deadlines.', 'error');
+        handleMutationError(e, 'Failed to update deadlines.');
+        return false;
       }
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [currentMess, handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   // --- Meal Operations ---
@@ -639,27 +749,39 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       date: string,
       lunchStatus: MealServiceStatus,
       nightStatus: MealServiceStatus,
-      cancellationReason: string
-    ) => {
-      if (!selectedMessId) return;
+      cancellationReason: string,
+      expectedVersion?: number | null
+    ): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can change meal service status.', 'error');
-        return;
+        return false;
       }
+      const record = dailyMeals.find((r) => r.id === date || r.date === date);
+      const resolvedVersion =
+        expectedVersion !== undefined
+          ? expectedVersion
+          : record
+            ? normalizeVersion(record.version)
+            : null;
       try {
         await service.updateMealServiceStatus(
           selectedMessId,
           date,
           lunchStatus,
           nightStatus,
-          cancellationReason
+          cancellationReason,
+          resolvedVersion
         );
+        setConflictState(null);
         showUiMessage('Meal service status updated. Kitchen summary refreshed.');
+        return true;
       } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Error updating service.', 'error');
+        handleMutationError(e, 'Error updating service.');
+        return false;
       }
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [dailyMeals, handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   const saveMyBooking = useCallback(
@@ -668,9 +790,10 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       statusLunch: 'BOOKED' | 'CANCELLED',
       statusNight: 'BOOKED' | 'CANCELLED',
       guestLunch: number,
-      guestNight: number
-    ) => {
-      if (!selectedMessId || !authUser) return;
+      guestNight: number,
+      expectedVersion?: number | null
+    ): Promise<boolean> => {
+      if (!selectedMessId || !authUser) return false;
       const memberId = currentMember?.id || authUser.uid;
       const lunchCutoff = currentMess?.lunchBookingDeadline || '09:00';
       const nightCutoff = currentMess?.nightBookingDeadline || '17:00';
@@ -679,6 +802,12 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       const nightPassed = isFri ? true : isDeadlinePassed(date, nightCutoff);
 
       const record = dailyMeals.find((r) => r.id === date || r.date === date);
+      const resolvedVersion =
+        expectedVersion !== undefined
+          ? expectedVersion
+          : record
+            ? normalizeVersion(record.version)
+            : null;
       const prevBooking = record?.bookings?.[memberId] ?? defaultBookingEntry();
 
       const effectiveLunch = lunchPassed ? prevBooking.statusLunch : statusLunch;
@@ -701,7 +830,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
           'Deadlines have passed. Bookings are locked. Contact Manager/Admin for overrides.',
           'error'
         );
-        return;
+        return false;
       }
 
       try {
@@ -721,12 +850,16 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
           lunchDeadline: lunchCutoff,
           nightDeadline: nightCutoff,
           isManager,
+          expectedVersion: resolvedVersion,
         });
+        setConflictState(null);
         showUiMessage(
           `Meal booking saved (${effectiveLunch === 'BOOKED' ? 'Lunch Booked' : 'Lunch Cancelled'} | ${effectiveNight === 'BOOKED' ? 'Night Booked' : 'Night Cancelled'}).`
         );
+        return true;
       } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Booking failed.', 'error');
+        handleMutationError(e, 'Booking failed.');
+        return false;
       }
     },
     [
@@ -734,6 +867,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       currentMember,
       currentMess,
       dailyMeals,
+      handleMutationError,
       isManager,
       selectedMessId,
       service,
@@ -811,6 +945,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
               lunchDeadline: lunchCutoff,
               nightDeadline: nightCutoff,
               isManager,
+              expectedVersion: record ? normalizeVersion(record.version) : null,
             });
           }
 
@@ -820,6 +955,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
               : effectiveLunchPref
                 ? 'Lunch only'
                 : 'Night only';
+          setConflictState(null);
           showUiMessage(`Auto-booking turned ON (${scopeLabel}).`);
         } else {
           await service.clearAutoBookedEntries({
@@ -830,10 +966,11 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
             lunchDeadline: lunchCutoff,
             nightDeadline: nightCutoff,
           });
+          setConflictState(null);
           showUiMessage('Auto-booking turned OFF. Please book your meals manually.');
         }
       } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to update auto-booking.', 'error');
+        handleMutationError(e, 'Failed to update auto-booking.');
       }
     },
     [
@@ -841,6 +978,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       currentMember,
       currentMess,
       dailyMeals,
+      handleMutationError,
       isManager,
       selectedDate,
       selectedMessId,
@@ -860,6 +998,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       guestLunch,
       guestNight,
       reason,
+      expectedVersion,
     }: {
       date: string;
       memberId: string;
@@ -869,16 +1008,24 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       guestLunch: number;
       guestNight: number;
       reason: string;
-    }) => {
-      if (!selectedMessId || !authUser) return;
+      expectedVersion?: number | null;
+    }): Promise<boolean> => {
+      if (!selectedMessId || !authUser) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can override locked bookings.', 'error');
-        return;
+        return false;
       }
       if (!reason.trim()) {
         showUiMessage('Please provide an override reason for audit history.', 'error');
-        return;
+        return false;
       }
+      const record = dailyMeals.find((r) => r.id === date || r.date === date);
+      const resolvedVersion =
+        expectedVersion !== undefined
+          ? expectedVersion
+          : record
+            ? normalizeVersion(record.version)
+            : null;
       try {
         const booking: MealBookingEntry = {
           statusLunch,
@@ -896,49 +1043,82 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
           memberName,
           booking,
           reason: reason.trim(),
+          expectedVersion: resolvedVersion,
         });
+        setConflictState(null);
         showUiMessage('Manager booking override recorded in audit history.');
+        return true;
       } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Override error.', 'error');
+        handleMutationError(e, 'Override error.');
+        return false;
       }
     },
-    [authUser, isManager, selectedMessId, service, showUiMessage]
+    [authUser, dailyMeals, handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   const saveFinalOrderSummary = useCallback(
-    async (date: string, mealType: 'LUNCH' | 'NIGHT') => {
-      if (!selectedMessId) return;
+    async (
+      date: string,
+      mealType: 'LUNCH' | 'NIGHT',
+      expectedVersion?: number | null
+    ): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can lock final kitchen orders.', 'error');
-        return;
+        return false;
       }
       const isLunch = mealType === 'LUNCH';
       const deadline = isLunch
         ? currentMess?.lunchBookingDeadline || '09:00'
         : currentMess?.nightBookingDeadline || '17:00';
+      const record = dailyMeals.find((r) => r.id === date || r.date === date);
+      const resolvedVersion =
+        expectedVersion !== undefined
+          ? expectedVersion
+          : record
+            ? normalizeVersion(record.version)
+            : null;
       try {
-        await service.saveFinalMealOrderSummary(selectedMessId, date, mealType, {
-          mealType,
+        await service.saveFinalMealOrderSummary(
+          selectedMessId,
           date,
-          totalPortions: isLunch
-            ? kitchenSummary.lunchTotalPortions
-            : kitchenSummary.nightTotalPortions,
-          memberCount: isLunch
-            ? kitchenSummary.lunchMemberCount
-            : kitchenSummary.nightMemberCount,
-          guestCount: isLunch
-            ? kitchenSummary.lunchGuestCount
-            : kitchenSummary.nightGuestCount,
-          deadline,
-          isLocked: true,
-          lockedAtDhakaTime: format12Hour(deadline),
-        });
+          mealType,
+          {
+            mealType,
+            date,
+            totalPortions: isLunch
+              ? kitchenSummary.lunchTotalPortions
+              : kitchenSummary.nightTotalPortions,
+            memberCount: isLunch
+              ? kitchenSummary.lunchMemberCount
+              : kitchenSummary.nightMemberCount,
+            guestCount: isLunch
+              ? kitchenSummary.lunchGuestCount
+              : kitchenSummary.nightGuestCount,
+            deadline,
+            isLocked: true,
+            lockedAtDhakaTime: format12Hour(deadline),
+          },
+          resolvedVersion
+        );
+        setConflictState(null);
         showUiMessage(`Final ${mealType.toLowerCase()} kitchen order saved & locked.`);
+        return true;
       } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to lock kitchen order.', 'error');
+        handleMutationError(e, 'Failed to lock kitchen order.');
+        return false;
       }
     },
-    [currentMess, isManager, kitchenSummary, selectedMessId, service, showUiMessage]
+    [
+      currentMess,
+      dailyMeals,
+      handleMutationError,
+      isManager,
+      kitchenSummary,
+      selectedMessId,
+      service,
+      showUiMessage,
+    ]
   );
 
   const saveConfirmedAttendance = useCallback(
@@ -950,6 +1130,7 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       attendedNight,
       guestLunchAttended,
       guestNightAttended,
+      expectedVersion,
     }: {
       date: string;
       memberId: string;
@@ -958,13 +1139,20 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       attendedNight: boolean;
       guestLunchAttended: number;
       guestNightAttended: number;
-    }) => {
-      if (!selectedMessId) return;
+      expectedVersion?: number | null;
+    }): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can confirm attendance.', 'error');
-        return;
+        return false;
       }
       const rec = dailyMeals.find((r) => r.id === date || r.date === date);
+      const resolvedVersion =
+        expectedVersion !== undefined
+          ? expectedVersion
+          : rec
+            ? normalizeVersion(rec.version)
+            : null;
       const isFri = rec?.isFriday ?? checkIsFriday(date);
       const lunchStatus = rec?.lunchServiceStatus ?? 'ACTIVE';
       const nightStatus = isFri ? 'CANCELLED' : (rec?.nightServiceStatus ?? 'ACTIVE');
@@ -990,13 +1178,17 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
           memberName,
           attendance,
           isFriday: isFri,
+          expectedVersion: resolvedVersion,
         });
+        setConflictState(null);
         showUiMessage(`Confirmed attendance for ${memberName} (${attendance.calculatedUnits} units).`);
+        return true;
       } catch (e) {
-        showUiMessage(e instanceof Error ? e.message : 'Failed to save attendance.', 'error');
+        handleMutationError(e, 'Failed to save attendance.');
+        return false;
       }
     },
-    [dailyMeals, isManager, selectedMessId, service, showUiMessage]
+    [dailyMeals, handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   // --- Bazaar ---
@@ -1008,48 +1200,60 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       itemsDescription: string;
       category: string;
       date: string;
-    }) => {
-      if (!selectedMessId) return;
-      await mutationLockRef.current.run('addBazaarExpense', async () => {
+    }): Promise<boolean> => {
+      if (!selectedMessId) return false;
+      const res = await mutationLockRef.current.run('addBazaarExpense', async () => {
         try {
           await service.addBazaarExpense(selectedMessId, params);
+          setConflictState(null);
           showUiMessage('Bazaar expense logged.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to log bazaar expense.', 'error');
+          handleMutationError(e, 'Failed to log bazaar expense.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [selectedMessId, service, showUiMessage]
+    [handleMutationError, selectedMessId, service, showUiMessage]
   );
 
   const updateBazaarExpense = useCallback(
-    async (expense: BazaarExpense) => {
-      if (!selectedMessId) return;
-      await mutationLockRef.current.run(`updateBazaarExpense:${expense.id}`, async () => {
+    async (expense: BazaarExpense): Promise<boolean> => {
+      if (!selectedMessId) return false;
+      const res = await mutationLockRef.current.run(`updateBazaarExpense:${expense.id}`, async () => {
         try {
           await service.updateBazaarExpense(selectedMessId, expense);
+          setConflictState(null);
           showUiMessage('Bazaar expense updated.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to update bazaar expense.', 'error');
+          handleMutationError(e, 'Failed to update bazaar expense.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [selectedMessId, service, showUiMessage]
+    [handleMutationError, selectedMessId, service, showUiMessage]
   );
 
   const deleteBazaarExpense = useCallback(
-    async (expenseId: string) => {
-      if (!selectedMessId) return;
-      await mutationLockRef.current.run(`deleteBazaarExpense:${expenseId}`, async () => {
+    async (expenseId: string): Promise<boolean> => {
+      if (!selectedMessId) return false;
+      const res = await mutationLockRef.current.run(`deleteBazaarExpense:${expenseId}`, async () => {
         try {
           await service.deleteBazaarExpense(selectedMessId, expenseId);
+          setConflictState(null);
           showUiMessage('Bazaar expense deleted.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to delete expense.', 'error');
+          handleMutationError(e, 'Failed to delete expense.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [selectedMessId, service, showUiMessage]
+    [handleMutationError, selectedMessId, service, showUiMessage]
   );
 
   // --- Deposits ---
@@ -1061,125 +1265,149 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       paymentMethod: string;
       notes: string;
       date: string;
-    }) => {
-      if (!selectedMessId || !authUser) return;
+    }): Promise<boolean> => {
+      if (!selectedMessId || !authUser) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can add deposits.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run('addDeposit', async () => {
+      const res = await mutationLockRef.current.run('addDeposit', async () => {
         try {
           await service.addDeposit(selectedMessId, {
             ...params,
             recordedBy: authUser.uid,
           });
+          setConflictState(null);
           showUiMessage('Deposit recorded.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to add deposit.', 'error');
+          handleMutationError(e, 'Failed to add deposit.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [authUser, isManager, selectedMessId, service, showUiMessage]
+    [authUser, handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   const updateDeposit = useCallback(
-    async (deposit: Deposit) => {
-      if (!selectedMessId) return;
+    async (deposit: Deposit): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can edit deposits.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run(`updateDeposit:${deposit.id}`, async () => {
+      const res = await mutationLockRef.current.run(`updateDeposit:${deposit.id}`, async () => {
         try {
           await service.updateDeposit(selectedMessId, deposit);
+          setConflictState(null);
           showUiMessage('Deposit updated.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to update deposit.', 'error');
+          handleMutationError(e, 'Failed to update deposit.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   const deleteDeposit = useCallback(
-    async (deposit: Deposit) => {
-      if (!selectedMessId) return;
+    async (deposit: Deposit): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can delete deposits.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run(`deleteDeposit:${deposit.id}`, async () => {
+      const res = await mutationLockRef.current.run(`deleteDeposit:${deposit.id}`, async () => {
         try {
           await service.deleteDeposit(selectedMessId, deposit);
+          setConflictState(null);
           showUiMessage('Deposit removed.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to delete deposit.', 'error');
+          handleMutationError(e, 'Failed to delete deposit.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   // --- Utility Bills ---
   const addUtilityBill = useCallback(
-    async (title: string, amount: number) => {
-      if (!selectedMessId) return;
+    async (title: string, amount: number): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can add utility bills.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run('addUtilityBill', async () => {
+      const res = await mutationLockRef.current.run('addUtilityBill', async () => {
         try {
           await service.addUtilityBill(selectedMessId, {
             title: title.trim(),
             amount,
             month: currentMess?.activeMonth || getCurrentDhakaMonth(),
           });
+          setConflictState(null);
           showUiMessage('Utility bill added.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to add utility bill.', 'error');
+          handleMutationError(e, 'Failed to add utility bill.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [currentMess, isManager, selectedMessId, service, showUiMessage]
+    [currentMess, handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   const updateUtilityBill = useCallback(
-    async (bill: UtilityBill) => {
-      if (!selectedMessId) return;
+    async (bill: UtilityBill): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can edit utility bills.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run(`updateUtilityBill:${bill.id}`, async () => {
+      const res = await mutationLockRef.current.run(`updateUtilityBill:${bill.id}`, async () => {
         try {
           await service.updateUtilityBill(selectedMessId, bill);
+          setConflictState(null);
           showUiMessage('Utility bill updated.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to update utility bill.', 'error');
+          handleMutationError(e, 'Failed to update utility bill.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   const deleteUtilityBill = useCallback(
-    async (bill: UtilityBill) => {
-      if (!selectedMessId) return;
+    async (bill: UtilityBill): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can delete utility bills.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run(`deleteUtilityBill:${bill.id}`, async () => {
+      const res = await mutationLockRef.current.run(`deleteUtilityBill:${bill.id}`, async () => {
         try {
           await service.deleteUtilityBill(selectedMessId, bill.id, bill.title, bill.amount);
+          setConflictState(null);
           showUiMessage('Utility bill removed.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to delete utility bill.', 'error');
+          handleMutationError(e, 'Failed to delete utility bill.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   // --- Shared Bills ---
@@ -1198,18 +1426,18 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       deadline: string;
       notes: string;
       customShares?: Record<string, number>;
-    }) => {
-      if (!selectedMessId) return;
+    }): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can create shared bills.', 'error');
-        return;
+        return false;
       }
       const activeMembers = members.filter((m) => m.isActive);
       if (activeMembers.length === 0) {
         showUiMessage('Cannot create bill: No active members found.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run('createSharedBill', async () => {
+      const res = await mutationLockRef.current.run('createSharedBill', async () => {
         try {
           await service.createSharedBill({
             messId: selectedMessId,
@@ -1222,53 +1450,71 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
             activeMembers,
             customShares,
           });
+          setConflictState(null);
           showUiMessage(
             `Shared bill '${title}' published. Notifications sent to ${activeMembers.length} members.`
           );
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to create shared bill.', 'error');
+          handleMutationError(e, 'Failed to create shared bill.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [currentMess, isManager, members, selectedMessId, service, showUiMessage]
+    [currentMess, handleMutationError, isManager, members, selectedMessId, service, showUiMessage]
   );
 
   const updateSharedBill = useCallback(
-    async (bill: SharedBill, updatedShares?: Record<string, number>) => {
-      if (!selectedMessId) return;
+    async (bill: SharedBill, updatedShares?: Record<string, number>): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can edit shared bills.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run(`updateSharedBill:${bill.id}`, async () => {
+      const res = await mutationLockRef.current.run(`updateSharedBill:${bill.id}`, async () => {
         try {
           await service.updateSharedBill(selectedMessId, bill, updatedShares);
+          setConflictState(null);
           showUiMessage('Shared bill updated.');
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to update bill.', 'error');
+          handleMutationError(e, 'Failed to update bill.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   const deleteSharedBill = useCallback(
-    async (bill: SharedBill) => {
-      if (!selectedMessId) return;
+    async (bill: SharedBill): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can delete shared bills.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run(`deleteSharedBill:${bill.id}`, async () => {
+      const res = await mutationLockRef.current.run(`deleteSharedBill:${bill.id}`, async () => {
         try {
-          await service.deleteSharedBill(selectedMessId, bill.id, bill.title, bill.totalAmount);
+          await service.deleteSharedBill(
+            selectedMessId,
+            bill.id,
+            bill.title,
+            bill.totalAmount,
+            normalizeVersion(bill.version)
+          );
+          setConflictState(null);
           showUiMessage(`Shared bill '${bill.title}' removed.`);
+          return true;
         } catch (e) {
-          showUiMessage(e instanceof Error ? e.message : 'Failed to delete bill.', 'error');
+          handleMutationError(e, 'Failed to delete bill.');
+          return false;
         }
       });
+      return Boolean(res.value);
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [handleMutationError, isManager, selectedMessId, service, showUiMessage]
   );
 
   const recordBillPayment = useCallback(
@@ -1281,17 +1527,30 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
       paymentMethod: string;
       paymentDate: string;
       notes: string;
-    }) => {
-      if (!selectedMessId) return;
+      expectedVersion?: number | null;
+    }): Promise<boolean> => {
+      if (!selectedMessId) return false;
       if (!isManager) {
         showUiMessage('Access Denied: Only Managers can record payments.', 'error');
-        return;
+        return false;
       }
-      await mutationLockRef.current.run(
+      const targetBill = sharedBills.find((b) => b.id === params.billId);
+      const resolvedVersion =
+        params.expectedVersion !== undefined
+          ? params.expectedVersion
+          : targetBill
+            ? normalizeVersion(targetBill.version)
+            : null;
+      const res = await mutationLockRef.current.run(
         `recordBillPayment:${params.billId}:${params.memberId}`,
         async () => {
           try {
-            await service.recordBillPayment({ messId: selectedMessId, ...params });
+            await service.recordBillPayment({
+              messId: selectedMessId,
+              ...params,
+              expectedVersion: resolvedVersion,
+            });
+            setConflictState(null);
             const statusText =
               params.amountPaid >= params.assignedShare && params.assignedShare > 0
                 ? 'Paid in full'
@@ -1299,13 +1558,16 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
                   ? `Partially paid (৳${params.amountPaid})`
                   : 'Marked as unpaid';
             showUiMessage(`Payment recorded for ${params.memberName}: ${statusText}.`);
+            return true;
           } catch (e) {
-            showUiMessage(e instanceof Error ? e.message : 'Failed to record payment.', 'error');
+            handleMutationError(e, 'Failed to record payment.');
+            return false;
           }
         }
       );
+      return Boolean(res.value);
     },
-    [isManager, selectedMessId, service, showUiMessage]
+    [handleMutationError, isManager, selectedMessId, service, sharedBills, showUiMessage]
   );
 
   // --- Member Roles & Status ---
@@ -1422,6 +1684,8 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     summary,
     kitchenSummary,
     uiMessage,
+    conflictState,
+    syncRevision,
     isSubmitting,
     activeNav,
     isWalkthroughOpen,
@@ -1431,6 +1695,8 @@ export function MessProvider({ children }: { children: React.ReactNode }) {
     setSelectedDate,
     clearUiMessage,
     showUiMessage,
+    clearConflict,
+    reloadLatestData,
     openWalkthrough,
     closeWalkthrough,
     signInWithGoogle,

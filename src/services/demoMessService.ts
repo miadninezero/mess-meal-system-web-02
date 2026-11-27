@@ -22,6 +22,7 @@ import {
   shiftDate,
 } from '../utils/dhakaTime';
 import { roundTwoDecimals } from '../utils/messCalculations';
+import { assertAndNextVersion, normalizeVersion } from '../utils/optimisticConcurrency';
 import { IMessDataService, MessObservers } from './messServiceTypes';
 
 const DEMO_STORAGE_KEY = 'mess_meal_demo_state_v2';
@@ -139,6 +140,7 @@ function createInitialDemoState(): DemoState {
       attendances: {},
       totalDayUnits: 0,
       totalDayMeals: 0,
+      version: 1,
       updatedBy: DEMO_USER_ID,
       updatedAt: Date.now() - 3600000,
     };
@@ -181,6 +183,7 @@ function createInitialDemoState(): DemoState {
         attendances,
         totalDayUnits: dayUnitsPerMember * members.length,
         totalDayMeals: dayUnitsPerMember * members.length,
+        version: 1,
         updatedBy: DEMO_USER_ID,
         updatedAt: Date.now() - Math.abs(mOff) * 30 * 86400000,
       });
@@ -246,6 +249,7 @@ function createInitialDemoState(): DemoState {
         itemsDescription: spec.d1,
         category: 'Groceries',
         date: `${mk}-08`,
+        version: 1,
         createdAt: tsBase,
       },
       {
@@ -256,6 +260,7 @@ function createInitialDemoState(): DemoState {
         itemsDescription: spec.d2,
         category: 'Meat & Fish',
         date: `${mk}-20`,
+        version: 1,
         createdAt: tsBase + 86400000 * 12,
       },
     ];
@@ -270,6 +275,7 @@ function createInitialDemoState(): DemoState {
       itemsDescription: 'Rohu fish 2.5kg, potatoes, onions, green chili, cooking oil',
       category: 'Meat & Fish',
       date: yesterday,
+      version: 1,
       createdAt: Date.now() - 86400000,
     },
     {
@@ -280,6 +286,7 @@ function createInitialDemoState(): DemoState {
       itemsDescription: 'Miniket rice 10kg, masoor dal 2kg, salt, turmeric',
       category: 'Groceries',
       date: twoDaysAgo,
+      version: 1,
       createdAt: Date.now() - 86400000 * 2,
     },
     {
@@ -290,6 +297,7 @@ function createInitialDemoState(): DemoState {
       itemsDescription: 'Broiler chicken 2kg, eggplant, cauliflower, tomatoes',
       category: 'Vegetables',
       date: threeDaysAgo,
+      version: 1,
       createdAt: Date.now() - 86400000 * 3,
     },
     {
@@ -300,6 +308,7 @@ function createInitialDemoState(): DemoState {
       itemsDescription: 'Ginger, garlic, cumin, coriander, mustard oil',
       category: 'Spices',
       date: fourDaysAgo,
+      version: 1,
       createdAt: Date.now() - 86400000 * 4,
     },
     ...historicalBazaars,
@@ -326,6 +335,7 @@ function createInitialDemoState(): DemoState {
       paymentMethod: idx % 2 === 0 ? 'bKash/Nagad' : 'Cash',
       notes: `Monthly mess deposit (${mk})`,
       recordedBy: DEMO_USER_ID,
+      version: 1,
       createdAt: tsBase + idx * 3600000,
     }));
   });
@@ -340,6 +350,7 @@ function createInitialDemoState(): DemoState {
       paymentMethod: 'bKash/Nagad',
       notes: 'Monthly advance deposit',
       recordedBy: DEMO_USER_ID,
+      version: 1,
       createdAt: Date.now() - 86400000 * 4,
     },
     {
@@ -351,6 +362,7 @@ function createInitialDemoState(): DemoState {
       paymentMethod: 'Cash',
       notes: 'First installment',
       recordedBy: DEMO_USER_ID,
+      version: 1,
       createdAt: Date.now() - 86400000 * 4,
     },
     {
@@ -362,6 +374,7 @@ function createInitialDemoState(): DemoState {
       paymentMethod: 'bKash/Nagad',
       notes: 'Advance deposit',
       recordedBy: DEMO_USER_ID,
+      version: 1,
       createdAt: Date.now() - 86400000 * 3,
     },
     {
@@ -373,6 +386,7 @@ function createInitialDemoState(): DemoState {
       paymentMethod: 'Bank',
       notes: 'Bank transfer ref #4821',
       recordedBy: DEMO_USER_ID,
+      version: 1,
       createdAt: Date.now() - 86400000 * 2,
     },
     {
@@ -384,6 +398,7 @@ function createInitialDemoState(): DemoState {
       paymentMethod: 'Cash',
       notes: 'Advance cash',
       recordedBy: DEMO_USER_ID,
+      version: 1,
       createdAt: Date.now() - 86400000,
     },
     ...historicalDeposits,
@@ -395,6 +410,7 @@ function createInitialDemoState(): DemoState {
       title: 'Cook (Khala) Monthly Salary',
       amount: 3500,
       month: currentMonth,
+      version: 1,
       createdAt: Date.now() - 86400000 * 5,
     },
     {
@@ -402,6 +418,7 @@ function createInitialDemoState(): DemoState {
       title: 'LPG Gas & Stove Maintenance',
       amount: 1450,
       month: currentMonth,
+      version: 1,
       createdAt: Date.now() - 86400000 * 4,
     },
   ];
@@ -468,6 +485,7 @@ function createInitialDemoState(): DemoState {
       },
       createdByUid: DEMO_USER_ID,
       createdByName: 'Tanvir Hasan',
+      version: 1,
       createdAt: Date.now() - 86400000 * 3,
       updatedAt: Date.now() - 3600000,
     },
@@ -534,6 +552,7 @@ function createInitialDemoState(): DemoState {
           activeMonth: currentMonth,
           lunchBookingDeadline: '09:00',
           nightBookingDeadline: '17:00',
+          version: 1,
           createdAt: Date.now() - 86400000 * 15,
           updatedAt: Date.now(),
         },
@@ -556,6 +575,56 @@ class DemoMessServiceImpl implements IMessDataService {
 
   constructor() {
     this.state = this.loadState();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', (ev) => {
+        if (ev.key === DEMO_STORAGE_KEY && ev.newValue) {
+          this.syncFromStorageIfPresent();
+          this.listeners.forEach((cb) => cb());
+        }
+      });
+    }
+  }
+
+  private normalizeBundleVersions(bundle: DemoMessBundle): DemoMessBundle {
+    return {
+      ...bundle,
+      mess: { ...bundle.mess, version: normalizeVersion(bundle.mess.version) },
+      dailyMeals: bundle.dailyMeals.map((r) => ({ ...r, version: normalizeVersion(r.version) })),
+      bazaarExpenses: bundle.bazaarExpenses.map((e) => ({
+        ...e,
+        version: normalizeVersion(e.version),
+      })),
+      deposits: bundle.deposits.map((d) => ({ ...d, version: normalizeVersion(d.version) })),
+      utilityBills: bundle.utilityBills.map((u) => ({ ...u, version: normalizeVersion(u.version) })),
+      sharedBills: bundle.sharedBills.map((s) => ({ ...s, version: normalizeVersion(s.version) })),
+    };
+  }
+
+  private normalizeDemoState(parsed: DemoState): DemoState {
+    const normalizedMesses: Record<string, DemoMessBundle> = {};
+    for (const [id, b] of Object.entries(parsed.messes)) {
+      normalizedMesses[id] = this.normalizeBundleVersions(b);
+    }
+    return {
+      ...parsed,
+      messes: normalizedMesses,
+    };
+  }
+
+  private syncFromStorageIfPresent() {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const raw = window.localStorage.getItem(DEMO_STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as DemoState;
+          if (parsed && parsed.messes && parsed.profile) {
+            this.state = this.normalizeDemoState(parsed);
+          }
+        }
+      } catch {
+        // ignore storage errors
+      }
+    }
   }
 
   private loadState(): DemoState {
@@ -565,7 +634,7 @@ class DemoMessServiceImpl implements IMessDataService {
         if (raw) {
           const parsed = JSON.parse(raw) as DemoState;
           if (parsed && parsed.messes && parsed.profile) {
-            return parsed;
+            return this.normalizeDemoState(parsed);
           }
         }
       } catch {
@@ -595,6 +664,7 @@ class DemoMessServiceImpl implements IMessDataService {
   }
 
   private getBundle(messId: string): DemoMessBundle {
+    this.syncFromStorageIfPresent();
     const b = this.state.messes[messId];
     if (!b) throw new Error('Mess not found in demo workspace.');
     return b;
@@ -637,42 +707,61 @@ class DemoMessServiceImpl implements IMessDataService {
     };
   }
 
+  private emitBundle(messId: string, currentUserId: string, observers: MessObservers) {
+    const bundle = this.state.messes[messId];
+    if (!bundle) {
+      observers.onMess?.(null);
+      return;
+    }
+    observers.onMess?.({ ...bundle.mess, version: normalizeVersion(bundle.mess.version) });
+    observers.onMembers?.([...bundle.members]);
+    observers.onDailyMeals?.(
+      bundle.dailyMeals.map((r) => ({ ...r, version: normalizeVersion(r.version) }))
+    );
+    observers.onBazaarExpenses?.(
+      [...bundle.bazaarExpenses]
+        .map((e) => ({ ...e, version: normalizeVersion(e.version) }))
+        .sort((a, b) => b.date.localeCompare(a.date))
+    );
+    observers.onDeposits?.(
+      [...bundle.deposits]
+        .map((d) => ({ ...d, version: normalizeVersion(d.version) }))
+        .sort((a, b) => b.date.localeCompare(a.date))
+    );
+    observers.onUtilityBills?.(
+      bundle.utilityBills.map((u) => ({ ...u, version: normalizeVersion(u.version) }))
+    );
+    observers.onSharedBills?.(
+      [...bundle.sharedBills]
+        .map((s) => ({ ...s, version: normalizeVersion(s.version) }))
+        .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
+    );
+    const currentMember = bundle.members.find((m) => m.userId === currentUserId);
+    const memId = currentMember?.id || currentUserId;
+    observers.onNotifications?.(
+      bundle.notifications.filter(
+        (n) =>
+          n.targetMemberId === memId ||
+          n.targetMemberId === currentUserId ||
+          n.targetMemberId === 'ALL' ||
+          !n.targetMemberId
+      )
+    );
+    observers.onAuditLogs?.([...bundle.auditLogs]);
+  }
+
   observeMessBundle(messId: string, currentUserId: string, observers: MessObservers) {
-    const emit = () => {
-      const bundle = this.state.messes[messId];
-      if (!bundle) {
-        observers.onMess?.(null);
-        return;
-      }
-      observers.onMess?.({ ...bundle.mess });
-      observers.onMembers?.([...bundle.members]);
-      observers.onDailyMeals?.([...bundle.dailyMeals]);
-      observers.onBazaarExpenses?.(
-        [...bundle.bazaarExpenses].sort((a, b) => b.date.localeCompare(a.date))
-      );
-      observers.onDeposits?.([...bundle.deposits].sort((a, b) => b.date.localeCompare(a.date)));
-      observers.onUtilityBills?.([...bundle.utilityBills]);
-      observers.onSharedBills?.(
-        [...bundle.sharedBills].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))
-      );
-      const currentMember = bundle.members.find((m) => m.userId === currentUserId);
-      const memId = currentMember?.id || currentUserId;
-      observers.onNotifications?.(
-        bundle.notifications.filter(
-          (n) =>
-            n.targetMemberId === memId ||
-            n.targetMemberId === currentUserId ||
-            n.targetMemberId === 'ALL' ||
-            !n.targetMemberId
-        )
-      );
-      observers.onAuditLogs?.([...bundle.auditLogs]);
-    };
+    const emit = () => this.emitBundle(messId, currentUserId, observers);
     emit();
     this.listeners.add(emit);
     return () => {
       this.listeners.delete(emit);
     };
+  }
+
+  async refreshMessData(messId: string, currentUserId: string, observers: MessObservers) {
+    this.syncFromStorageIfPresent();
+    this.emitBundle(messId, currentUserId, observers);
   }
 
   async saveUserProfile(profile: Partial<UserProfile> & { id: string }) {
@@ -693,6 +782,7 @@ class DemoMessServiceImpl implements IMessDataService {
         activeMonth: defaultMonth,
         lunchBookingDeadline: '09:00',
         nightBookingDeadline: '17:00',
+        version: 1,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       },
@@ -747,10 +837,24 @@ class DemoMessServiceImpl implements IMessDataService {
     this.persist();
   }
 
-  async updateBookingDeadlines(messId: string, lunchDeadline: string, nightDeadline: string) {
+  async updateBookingDeadlines(
+    messId: string,
+    lunchDeadline: string,
+    nightDeadline: string,
+    expectedVersion?: number | null
+  ) {
     const bundle = this.getBundle(messId);
+    const targetExpected =
+      expectedVersion !== undefined ? expectedVersion : normalizeVersion(bundle.mess.version);
+    const nextVersion = assertAndNextVersion({
+      exists: true,
+      currentVersion: bundle.mess.version,
+      expectedVersion: targetExpected,
+      recordLabel: 'mess deadline settings',
+    });
     bundle.mess.lunchBookingDeadline = lunchDeadline;
     bundle.mess.nightBookingDeadline = nightDeadline;
+    bundle.mess.version = nextVersion;
     bundle.mess.updatedAt = Date.now();
     this.addAudit(bundle, {
       action: 'DEADLINE_CONFIGURED',
@@ -848,27 +952,27 @@ class DemoMessServiceImpl implements IMessDataService {
     this.persist();
   }
 
-  private getOrCreateRecord(bundle: DemoMessBundle, date: string): DailyMealRecord {
-    let rec = bundle.dailyMeals.find((r) => r.id === date || r.date === date);
-    if (!rec) {
-      const isFri = checkIsFriday(date);
-      rec = {
-        id: date,
-        date,
-        isFriday: isFri,
-        lunchServiceStatus: 'ACTIVE',
-        nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
-        cancellationReason: '',
-        bookings: {},
-        attendances: {},
-        totalDayUnits: 0,
-        totalDayMeals: 0,
-        updatedBy: DEMO_USER_ID,
-        updatedAt: Date.now(),
-      };
-      bundle.dailyMeals.push(rec);
-    }
-    return rec;
+  private createEmptyRecord(date: string, version: number): DailyMealRecord {
+    const isFri = checkIsFriday(date);
+    return {
+      id: date,
+      date,
+      isFriday: isFri,
+      lunchServiceStatus: 'ACTIVE',
+      nightServiceStatus: isFri ? 'CANCELLED' : 'ACTIVE',
+      cancellationReason: '',
+      bookings: {},
+      attendances: {},
+      totalDayUnits: 0,
+      totalDayMeals: 0,
+      version,
+      updatedBy: DEMO_USER_ID,
+      updatedAt: Date.now(),
+    };
+  }
+
+  private findRecord(bundle: DemoMessBundle, date: string): DailyMealRecord | undefined {
+    return bundle.dailyMeals.find((r) => r.id === date || r.date === date);
   }
 
   async updateMealServiceStatus(
@@ -876,14 +980,27 @@ class DemoMessServiceImpl implements IMessDataService {
     date: string,
     lunchStatus: 'ACTIVE' | 'CANCELLED',
     nightStatus: 'ACTIVE' | 'CANCELLED',
-    cancellationReason: string
+    cancellationReason: string,
+    expectedVersion: number | null
   ) {
     const bundle = this.getBundle(messId);
-    const rec = this.getOrCreateRecord(bundle, date);
+    const existing = this.findRecord(bundle, date);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion,
+      recordLabel: `daily meal record (${date})`,
+    });
+    const rec = existing ?? this.createEmptyRecord(date, nextVersion);
+    if (!existing) {
+      bundle.dailyMeals.push(rec);
+    }
     const isFri = checkIsFriday(date);
     rec.lunchServiceStatus = lunchStatus;
     rec.nightServiceStatus = isFri ? 'CANCELLED' : nightStatus;
     rec.cancellationReason = cancellationReason;
+    rec.version = nextVersion;
+    rec.updatedBy = DEMO_USER_ID;
     rec.updatedAt = Date.now();
     this.addAudit(bundle, {
       action: 'SERVICE_STATUS_UPDATED',
@@ -905,6 +1022,7 @@ class DemoMessServiceImpl implements IMessDataService {
     lunchDeadline,
     nightDeadline,
     isManager,
+    expectedVersion,
   }: {
     messId: string;
     date: string;
@@ -913,6 +1031,7 @@ class DemoMessServiceImpl implements IMessDataService {
     lunchDeadline: string;
     nightDeadline: string;
     isManager: boolean;
+    expectedVersion: number | null;
   }) {
     const bundle = this.getBundle(messId);
     const isFri = checkIsFriday(date);
@@ -921,13 +1040,25 @@ class DemoMessServiceImpl implements IMessDataService {
     if (!isManager && lunchPassed && nightPassed) {
       throw new Error('Deadlines have passed. Bookings are locked.');
     }
-    const rec = this.getOrCreateRecord(bundle, date);
+    const existing = this.findRecord(bundle, date);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion,
+      recordLabel: `daily meal record (${date})`,
+    });
+    const rec = existing ?? this.createEmptyRecord(date, nextVersion);
+    if (!existing) {
+      bundle.dailyMeals.push(rec);
+    }
     rec.bookings = {
       ...rec.bookings,
       [memberId]: isFri
         ? { ...booking, statusNight: 'CANCELLED', guestNight: 0 }
         : { ...booking },
     };
+    rec.version = nextVersion;
+    rec.updatedBy = DEMO_USER_ID;
     rec.updatedAt = Date.now();
     this.persist();
   }
@@ -966,6 +1097,7 @@ class DemoMessServiceImpl implements IMessDataService {
     messId,
     memberId,
     todayDate,
+    records,
     lunchDeadline,
     nightDeadline,
   }: {
@@ -977,20 +1109,35 @@ class DemoMessServiceImpl implements IMessDataService {
     nightDeadline: string;
   }) {
     const bundle = this.getBundle(messId);
+    const versionMap = new Map(
+      records.map((r) => [r.date || r.id, normalizeVersion(r.version)])
+    );
     for (const rec of bundle.dailyMeals) {
-      if (rec.date < todayDate) continue;
+      const date = rec.date || rec.id;
+      if (date < todayDate) continue;
       const b = rec.bookings[memberId];
       if (!b || !b.autoBooked) continue;
-      const isFri = checkIsFriday(rec.date);
-      const lunchPassed = isDeadlinePassed(rec.date, lunchDeadline);
-      const nightPassed = isFri ? true : isDeadlinePassed(rec.date, nightDeadline);
+      const isFri = checkIsFriday(date);
+      const lunchPassed = isDeadlinePassed(date, lunchDeadline);
+      const nightPassed = isFri ? true : isDeadlinePassed(date, nightDeadline);
       if (lunchPassed && nightPassed) continue;
+      const nextVersion = assertAndNextVersion({
+        exists: true,
+        currentVersion: rec.version,
+        expectedVersion: versionMap.has(date)
+          ? versionMap.get(date)!
+          : normalizeVersion(rec.version),
+        recordLabel: `daily meal record (${date})`,
+      });
       rec.bookings[memberId] = {
         ...b,
         statusLunch: lunchPassed ? b.statusLunch : 'NO_RESPONSE',
         statusNight: nightPassed ? b.statusNight : 'NO_RESPONSE',
         autoBooked: false,
       };
+      rec.version = nextVersion;
+      rec.updatedBy = DEMO_USER_ID;
+      rec.updatedAt = Date.now();
     }
     this.persist();
   }
@@ -999,12 +1146,25 @@ class DemoMessServiceImpl implements IMessDataService {
     messId: string,
     date: string,
     mealType: 'LUNCH' | 'NIGHT',
-    summary: Parameters<IMessDataService['saveFinalMealOrderSummary']>[3]
+    summary: Parameters<IMessDataService['saveFinalMealOrderSummary']>[3],
+    expectedVersion: number | null
   ) {
     const bundle = this.getBundle(messId);
-    const rec = this.getOrCreateRecord(bundle, date);
+    const existing = this.findRecord(bundle, date);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion,
+      recordLabel: `daily meal record (${date})`,
+    });
+    const rec = existing ?? this.createEmptyRecord(date, nextVersion);
+    if (!existing) {
+      bundle.dailyMeals.push(rec);
+    }
     if (mealType === 'LUNCH') rec.lunchFinalOrder = { ...summary, savedAt: Date.now() };
     else rec.nightFinalOrder = { ...summary, savedAt: Date.now() };
+    rec.version = nextVersion;
+    rec.updatedBy = DEMO_USER_ID;
     rec.updatedAt = Date.now();
     this.persist();
   }
@@ -1016,9 +1176,20 @@ class DemoMessServiceImpl implements IMessDataService {
     memberName,
     booking,
     reason,
+    expectedVersion,
   }: Parameters<IMessDataService['overrideMemberBooking']>[0]) {
     const bundle = this.getBundle(messId);
-    const rec = this.getOrCreateRecord(bundle, date);
+    const existing = this.findRecord(bundle, date);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion,
+      recordLabel: `daily meal record (${date})`,
+    });
+    const rec = existing ?? this.createEmptyRecord(date, nextVersion);
+    if (!existing) {
+      bundle.dailyMeals.push(rec);
+    }
     const isFri = checkIsFriday(date);
     rec.bookings = {
       ...rec.bookings,
@@ -1030,6 +1201,9 @@ class DemoMessServiceImpl implements IMessDataService {
         autoBooked: false,
       },
     };
+    rec.version = nextVersion;
+    rec.updatedBy = DEMO_USER_ID;
+    rec.updatedAt = Date.now();
     this.addAudit(bundle, {
       action: 'BOOKING_OVERRIDE',
       performedByUid: DEMO_USER_ID,
@@ -1048,10 +1222,24 @@ class DemoMessServiceImpl implements IMessDataService {
     memberId,
     memberName,
     attendance,
+    expectedVersion,
   }: Parameters<IMessDataService['saveAttendance']>[0]) {
     const bundle = this.getBundle(messId);
-    const rec = this.getOrCreateRecord(bundle, date);
+    const existing = this.findRecord(bundle, date);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion,
+      recordLabel: `daily meal record (${date})`,
+    });
+    const rec = existing ?? this.createEmptyRecord(date, nextVersion);
+    if (!existing) {
+      bundle.dailyMeals.push(rec);
+    }
     rec.attendances = { ...rec.attendances, [memberId]: attendance };
+    rec.version = nextVersion;
+    rec.updatedBy = DEMO_USER_ID;
+    rec.updatedAt = Date.now();
     this.addAudit(bundle, {
       action: 'ATTENDANCE_CONFIRMED',
       performedByUid: DEMO_USER_ID,
@@ -1069,6 +1257,7 @@ class DemoMessServiceImpl implements IMessDataService {
     bundle.bazaarExpenses.unshift({
       ...expense,
       id: `baz_${Date.now()}`,
+      version: 1,
       createdAt: Date.now(),
     });
     this.persist();
@@ -1076,8 +1265,15 @@ class DemoMessServiceImpl implements IMessDataService {
 
   async updateBazaarExpense(messId: string, expense: BazaarExpense) {
     const bundle = this.getBundle(messId);
+    const existing = bundle.bazaarExpenses.find((e) => e.id === expense.id);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion: normalizeVersion(expense.version),
+      recordLabel: 'bazaar expense',
+    });
     bundle.bazaarExpenses = bundle.bazaarExpenses.map((e) =>
-      e.id === expense.id ? expense : e
+      e.id === expense.id ? { ...expense, version: nextVersion } : e
     );
     this.persist();
   }
@@ -1093,6 +1289,7 @@ class DemoMessServiceImpl implements IMessDataService {
     bundle.deposits.unshift({
       ...deposit,
       id: `dep_${Date.now()}`,
+      version: 1,
       createdAt: Date.now(),
     });
     this.addAudit(bundle, {
@@ -1109,7 +1306,16 @@ class DemoMessServiceImpl implements IMessDataService {
 
   async updateDeposit(messId: string, deposit: Deposit) {
     const bundle = this.getBundle(messId);
-    bundle.deposits = bundle.deposits.map((d) => (d.id === deposit.id ? deposit : d));
+    const existing = bundle.deposits.find((d) => d.id === deposit.id);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion: normalizeVersion(deposit.version),
+      recordLabel: 'deposit record',
+    });
+    bundle.deposits = bundle.deposits.map((d) =>
+      d.id === deposit.id ? { ...deposit, version: nextVersion } : d
+    );
     this.addAudit(bundle, {
       action: 'DEPOSIT_UPDATED',
       performedByUid: DEMO_USER_ID,
@@ -1139,7 +1345,12 @@ class DemoMessServiceImpl implements IMessDataService {
 
   async addUtilityBill(messId: string, bill: Omit<UtilityBill, 'id'>) {
     const bundle = this.getBundle(messId);
-    bundle.utilityBills.push({ ...bill, id: `util_${Date.now()}`, createdAt: Date.now() });
+    bundle.utilityBills.push({
+      ...bill,
+      id: `util_${Date.now()}`,
+      version: 1,
+      createdAt: Date.now(),
+    });
     this.addAudit(bundle, {
       action: 'UTILITY_BILL_ADDED',
       performedByUid: DEMO_USER_ID,
@@ -1154,7 +1365,16 @@ class DemoMessServiceImpl implements IMessDataService {
 
   async updateUtilityBill(messId: string, bill: UtilityBill) {
     const bundle = this.getBundle(messId);
-    bundle.utilityBills = bundle.utilityBills.map((b) => (b.id === bill.id ? bill : b));
+    const existing = bundle.utilityBills.find((b) => b.id === bill.id);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion: normalizeVersion(bill.version),
+      recordLabel: `utility bill (${bill.title})`,
+    });
+    bundle.utilityBills = bundle.utilityBills.map((b) =>
+      b.id === bill.id ? { ...bill, version: nextVersion } : b
+    );
     this.addAudit(bundle, {
       action: 'UTILITY_BILL_UPDATED',
       performedByUid: DEMO_USER_ID,
@@ -1241,6 +1461,7 @@ class DemoMessServiceImpl implements IMessDataService {
       payments: {},
       createdByUid: DEMO_USER_ID,
       createdByName: this.state.profile.displayName,
+      version: 1,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     });
@@ -1281,6 +1502,14 @@ class DemoMessServiceImpl implements IMessDataService {
     updatedShares?: Record<string, number>
   ) {
     const bundle = this.getBundle(messId);
+    const existing = bundle.sharedBills.find((b) => b.id === bill.id);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion: normalizeVersion(bill.version),
+      recordLabel: `shared bill (${bill.title})`,
+    });
+
     const finalShares = updatedShares ?? bill.memberShares;
     const finalTotal = updatedShares
       ? roundTwoDecimals(Object.values(finalShares).reduce((s, v) => s + v, 0))
@@ -1312,6 +1541,7 @@ class DemoMessServiceImpl implements IMessDataService {
             perMemberAmount: finalPerMem,
             memberShares: finalShares,
             payments: updatedPayments,
+            version: nextVersion,
             updatedAt: Date.now(),
           }
         : b
@@ -1332,9 +1562,19 @@ class DemoMessServiceImpl implements IMessDataService {
     messId: string,
     billId: string,
     billTitle: string,
-    totalAmount: number
+    totalAmount: number,
+    expectedVersion?: number | null
   ) {
     const bundle = this.getBundle(messId);
+    if (expectedVersion !== undefined) {
+      const existing = bundle.sharedBills.find((b) => b.id === billId);
+      assertAndNextVersion({
+        exists: Boolean(existing),
+        currentVersion: existing?.version,
+        expectedVersion,
+        recordLabel: `shared bill (${billTitle})`,
+      });
+    }
     bundle.sharedBills = bundle.sharedBills.filter((b) => b.id !== billId);
     this.addAudit(bundle, {
       action: 'SHARED_BILL_DELETED',
@@ -1358,10 +1598,26 @@ class DemoMessServiceImpl implements IMessDataService {
     paymentMethod,
     paymentDate,
     notes,
+    expectedVersion,
   }: Parameters<IMessDataService['recordBillPayment']>[0]) {
     const bundle = this.getBundle(messId);
+    const existing = bundle.sharedBills.find((b) => b.id === billId);
+    const nextVersion = assertAndNextVersion({
+      exists: Boolean(existing),
+      currentVersion: existing?.version,
+      expectedVersion,
+      recordLabel: 'shared bill',
+    });
+
+    const liveShare =
+      existing && typeof existing.memberShares?.[memberId] === 'number'
+        ? existing.memberShares[memberId]
+        : existing && typeof existing.perMemberAmount === 'number'
+          ? existing.perMemberAmount
+          : assignedShare;
+
     const status =
-      amountPaid >= assignedShare && assignedShare > 0
+      amountPaid >= liveShare && liveShare > 0
         ? BillPaymentStatus.PAID
         : amountPaid > 0
           ? BillPaymentStatus.PARTIALLY_PAID
@@ -1386,6 +1642,7 @@ class DemoMessServiceImpl implements IMessDataService {
                 updatedAt: Date.now(),
               },
             },
+            version: nextVersion,
             updatedAt: Date.now(),
           }
         : b
